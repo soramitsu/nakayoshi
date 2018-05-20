@@ -22,7 +22,7 @@ Following command should be ran in the cloned repository folder.
 $ sbt docker:publishLocal
 ```
 
-After that you will find an image tagged `chattohashi`
+After that you will find an image tagged `nakayoshi`
 
 Example `docker-compose.yml`:
 
@@ -31,7 +31,7 @@ version: '3'
 
 services:
   bot:
-    image: chattohashi:0.1
+    image: nakayoshi:0.1
     volumes:
       - ./files:/opt/docker/files:rw
       - ./settings:/opt/docker/settings:rw
