@@ -180,12 +180,14 @@ class BotTg(val token: String, val fileFolder: String, val admins: Set[String])
       val message: Option[(String, Seq[MessageEntity])] =
         msg.text.map((_, msg.entities.getOrElse(Seq())))
           .orElse(msg.caption.map((_, Seq())))
+      val alias = user.username
+
       photoUrl match {
         case None =>
-          router.get ! MsgFromTelegram(msg.chat.id, userName, message, None, forward)
+          router.get ! MsgFromTelegram(msg.chat.id, userName, alias, message, None, forward)
         case Some(future) =>
           future.foreach { url =>
-            router.get ! MsgFromTelegram(msg.chat.id, userName, message, Some(url), forward)
+            router.get ! MsgFromTelegram(msg.chat.id, userName, alias, message, Some(url), forward)
           }
       }
     }

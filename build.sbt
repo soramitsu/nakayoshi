@@ -38,7 +38,7 @@ libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "3.0.5" % Test
 )
 
-assemblyJarName in assembly := name + ".jar"
+assemblyJarName in assembly := name.value + ".jar"
 assemblyMergeStrategy in assembly := {
   case "logback.xml" => MergeStrategy.first
   case "application.conf"  => MergeStrategy.concat
@@ -53,6 +53,7 @@ dockerCommands := Seq(
   ExecCmd("VOLUME", "/opt/docker/files", "/opt/docker/settings"),
   ExecCmd("RUN", "chown", "daemon:daemon", "/opt/docker/files/", "/opt/docker/settings/"),
   Cmd("USER", "daemon"),
-  ExecCmd("ENTRYPOINT", "bin/" + name),
+  ExecCmd("ENTRYPOINT", "bin/" + name.value),
+  Cmd("EXPOSE", "8080"),
   ExecCmd("CMD")
 )

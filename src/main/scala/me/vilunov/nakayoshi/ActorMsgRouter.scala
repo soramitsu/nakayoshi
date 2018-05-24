@@ -88,18 +88,19 @@ class ActorMsgRouter(val tg: ActorRef,
     case MsgConnect(connection) =>
       addConnection(connection)
       Storage.insertConn(connection)
-    case m @ MsgFromTelegram(chatId, user, msg, file, fwd) =>
+    case m @ MsgFromTelegram(chatId, user, alias, msg, file, fwd) =>
       l.info("Telegram message received: " + m.toString)
+      val userfill = alias.fold(user)(alias => s"[$user](https://t.me/$alias)")
       if(msg.isDefined || file.isDefined) connsTg.get(chatId).foreach { conn =>
         conn.gtId.foreach { id =>
-          val text = s"**[$user]**" + fwd.fold("")(" *" + _ + "*") + '\n' +
-            file.fold("")(url => s"[Photo]($hostname$url)\n") +
+          val text = s"**$userfill** *" + fwd.fold("")(_ + " ") + "via telegram*\n" +
+            file.fold("")(url => s"![Photo]($hostname$url)\n") +
             msg.fold("") { case (str, ents) => MarkdownConverter.tg2gt(str, ents) }
           gitter ! MsgSendGitter(id, text)
         }
         conn.rcId.foreach { id =>
-          val text = s"*[$user]* _via telegram_" + fwd.fold("")(" _" + _ + "_") + '\n' +
-            file.fold("")(url => s"[Photo]($hostname$url)\n") +
+          val text = s"*$userfill* _" + fwd.fold("")(_ + " ") + "via telegram_\n" +
+            file.fold("")(url => s"![Photo]($hostname$url)\n") +
             msg.fold("") { case (str, ents) => MarkdownConverter.tg2rc(str, ents) }
           rocketchat ! MsgSendGitter(id, text)
         }
@@ -109,27 +110,27 @@ class ActorMsgRouter(val tg: ActorRef,
       connsGt.get(chatId).foreach { conn =>
         conn.tgId.foreach { id =>
           tg ! MsgSendTelegram(id,
-            s"*[*[$username](https://gitter.im$userUrl)*]* _via gitter_\n" +
+            s"[$username](https://gitter.im$userUrl) _via gitter_\n" +
               MarkdownConverter.gt2tg(text)
           )
         }
         conn.rcId.foreach { id =>
-          val msg = s"*[$username]* _via gitter_\n" +
+          val msg = s"[$username](https://gitter.im$userUrl) _via gitter_\n" +
             MarkdownConverter.gt2rc(text)
           rocketchat ! MsgSendGitter(id, msg)
         }
       }
     case m @ RocketchatMessage(chatId, username, text) =>
-      l.info("Rocketchat message received: " + m.toString)
+        l.info("Rocketchat message received: " + m.toString)
       connsRc.get(chatId).foreach { conn =>
         conn.tgId.foreach { id =>
           tg ! MsgSendTelegram(id,
-            s"*[*[$username](https://${Configuration.rcPath}/direct/$username)*]* _via rocketchat_\n" +
+            s"[$username](https://${Configuration.rcPath}/direct/$username) _via rocketchat_\n" +
               MarkdownConverter.rc2tg(text)
           )
         }
         conn.gtId.foreach { id =>
-          val msg = s"**[**[$username](https://${Configuration.rcPath}/direct/$username)**]** *via rocketchat*\n" +
+          val msg = s"[$username](https://${Configuration.rcPath}/direct/$username) *via rocketchat*\n" +
             MarkdownConverter.rc2gt(text)
           gitter ! MsgSendGitter(id, msg)
         }

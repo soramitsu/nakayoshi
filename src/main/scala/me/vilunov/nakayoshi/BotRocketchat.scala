@@ -144,6 +144,7 @@ class BotRocketchat(private val pathRaw: String,
     case 'getChats =>
       sender ! getChats()
     case ServerResponse(args) =>
+      if(!args.get("msg").contains("ping")) l.debug("Rocketchat response: " + args)
       if(args.get("id").contains(loginCall.toString)) {
         loggedIn = true
         listenQueue.foreach(subscribe)
@@ -153,7 +154,8 @@ class BotRocketchat(private val pathRaw: String,
           val chat = info("rid").asInstanceOf[String]
           val username = info("u").asInstanceOf[Map[String, Any]]("username").asInstanceOf[String]
           val content = info("msg").asInstanceOf[String]
-          if(!username.contains("sorabot")) router ! RocketchatMessage(chat, username, content)
+          val t = info.get("t").asInstanceOf[Option[String]]
+          if(!t.contains("uj") && username != user) router ! RocketchatMessage(chat, username, content)
         }
       }
     case MsgSendGitter(id, text) =>
