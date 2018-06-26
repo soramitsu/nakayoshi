@@ -1,4 +1,4 @@
-package me.vilunov.nakayoshi
+package jp.co.soramitsu.nakayoshi
 
 import akka.Done
 import akka.actor.{Actor, ActorRef, ActorSystem, Timers}

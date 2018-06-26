@@ -1,4 +1,4 @@
-package me.vilunov.nakayoshi
+package jp.co.soramitsu.nakayoshi
 
 import info.mukel.telegrambot4s.models.{MessageEntity, MessageEntityType}
 import info.mukel.telegrambot4s.models.MessageEntityType.MessageEntityType

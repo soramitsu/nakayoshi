@@ -1,6 +1,6 @@
-package me.vilunov.nakayoshi
+package jp.co.soramitsu.nakayoshi
 
-import me.vilunov.nakayoshi.Types._
+import Types._
 
 import akka.Done
 import slick.jdbc.SQLiteProfile.api._

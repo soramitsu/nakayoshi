@@ -1,4 +1,4 @@
-package me.vilunov.nakayoshi
+package jp.co.soramitsu.nakayoshi
 
 import akka.actor.{ActorSystem, Props}
 import akka.stream.ActorMaterializer

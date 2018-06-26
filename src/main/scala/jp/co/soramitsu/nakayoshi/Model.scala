@@ -1,6 +1,6 @@
-package me.vilunov.nakayoshi
+package jp.co.soramitsu.nakayoshi
 
-import me.vilunov.nakayoshi.Types._
+import Types._
 
 case class GitterGroup(id: String, name: String, uri: String)
 case class GitterRoom(id: String, name: String, uri: String, groupId: String)

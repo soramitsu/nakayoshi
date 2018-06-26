@@ -1,4 +1,4 @@
-package me.vilunov.nakayoshi
+package jp.co.soramitsu.nakayoshi
 
 import com.typesafe.scalalogging.Logger
 import info.mukel.telegrambot4s.api._
