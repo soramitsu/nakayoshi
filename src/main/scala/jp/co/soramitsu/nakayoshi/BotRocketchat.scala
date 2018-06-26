@@ -144,7 +144,7 @@ class BotRocketchat(private val pathRaw: String,
     case 'getChats =>
       sender ! getChats()
     case ServerResponse(args) =>
-      if(!args.get("msg").contains("ping")) l.debug("Rocketchat response: " + args)
+      if(!args.get("msg").contains("ping")) l.info("Rocketchat response: " + args)
       if(args.get("id").contains(loginCall.toString)) {
         loggedIn = true
         listenQueue.foreach(subscribe)
@@ -155,7 +155,9 @@ class BotRocketchat(private val pathRaw: String,
           val username = info("u").asInstanceOf[Map[String, Any]]("username").asInstanceOf[String]
           val content = info("msg").asInstanceOf[String]
           val t = info.get("t").asInstanceOf[Option[String]]
-          if(!t.contains("uj") && username != user) router ! RocketchatMessage(chat, username, content)
+          // the field `t` contains "uj" when the message is a user joined notification, and "ul" when it is a user left notification
+          // it is not defined for ordinary messages (most likely / no eto netochno)
+          if(t.isEmpty && username != user) router ! RocketchatMessage(chat, username, content)
         }
       }
     case MsgSendGitter(id, text) =>

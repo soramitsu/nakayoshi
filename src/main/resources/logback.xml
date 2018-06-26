@@ -7,7 +7,7 @@
         </encoder>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
             <fileNamePattern>./settings/logs/bridge.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
-            <maxFileSize>100MB</maxFileSize>
+            <maxFileSize>1GB</maxFileSize>
             <maxHistory>360</maxHistory>
             <totalSizeCap>1GB</totalSizeCap>
         </rollingPolicy>

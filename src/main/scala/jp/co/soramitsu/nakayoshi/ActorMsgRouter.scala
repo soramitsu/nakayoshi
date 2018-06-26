@@ -121,7 +121,7 @@ class ActorMsgRouter(val tg: ActorRef,
         }
       }
     case m @ RocketchatMessage(chatId, username, text) =>
-        l.info("Rocketchat message received: " + m.toString)
+      l.info("Rocketchat message received: " + m.toString)
       connsRc.get(chatId).foreach { conn =>
         conn.tgId.foreach { id =>
           tg ! MsgSendTelegram(id,

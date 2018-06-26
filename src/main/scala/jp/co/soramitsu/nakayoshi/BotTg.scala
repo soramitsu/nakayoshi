@@ -197,7 +197,8 @@ class BotTg(val token: String, val fileFolder: String, val admins: Set[String])
     case MsgRun(refRouter) =>
       router = Some(refRouter)
       run()
-    case MsgSendTelegram(id, msg) =>
+    case m @ MsgSendTelegram(id, msg) =>
+      l.info(s"Sending Telegram message: $m")
       request(SendMessage(id, msg, parseMode = Some(ParseMode.Markdown), disableWebPagePreview = Some(true)))
   }
 }
