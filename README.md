@@ -31,7 +31,7 @@ version: '3'
 
 services:
   bot:
-    image: nakayoshi:0.1
+    image: nakayoshi:latest
     volumes:
       - ./files:/opt/docker/files:rw
       - ./settings:/opt/docker/settings:rw

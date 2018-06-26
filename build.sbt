@@ -2,11 +2,11 @@ import com.typesafe.sbt.packager.docker._
 
 name := "nakayoshi"
 
-version := "0.1"
+version := "0.1.1"
 
 scalaVersion := "2.12.5"
 
-mainClass := Some("me.vilunov.nakayoshi.Main")
+mainClass := Some("jp.co.soramitsu.nakayoshi.Main")
 
 enablePlugins(JavaAppPackaging)
 enablePlugins(DockerPlugin)
@@ -16,7 +16,7 @@ val log4j = "2.10.0"
 val akka = "2.5.7"
 
 libraryDependencies ++= Seq(
-  "info.mukel" %% "telegrambot4s" % "3.0.14",
+  "info.mukel" %% "telegrambot4s" % "3.0.15",
   "com.typesafe" % "config" % "1.3.+",
   "org.json4s" %% "json4s-native" % "3.5.3",
   "com.keysolutions" % "java-ddp-client" % "1.0.0.7" exclude("org.slf4j", "slf4j-simple"),
@@ -44,6 +44,8 @@ assemblyMergeStrategy in assembly := {
   case "application.conf"  => MergeStrategy.concat
   case x => (assemblyMergeStrategy in assembly).value(x)
 }
+
+dockerUpdateLatest := true
 
 dockerCommands := Seq(
   Cmd("FROM", "openjdk:jre-alpine"),
