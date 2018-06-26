@@ -115,7 +115,7 @@ class ActorMsgRouter(val tg: ActorRef,
           )
         }
         conn.rcId.foreach { id =>
-          val msg = s"[$username](https://gitter.im$userUrl) _via gitter_\n" +
+          val msg = s"*[$username](https://gitter.im$userUrl)* _via gitter_\n" +
             MarkdownConverter.gt2rc(text)
           rocketchat ! MsgSendGitter(id, msg)
         }
@@ -130,7 +130,7 @@ class ActorMsgRouter(val tg: ActorRef,
           )
         }
         conn.gtId.foreach { id =>
-          val msg = s"[$username](https://${Configuration.rcPath}/direct/$username) *via rocketchat*\n" +
+          val msg = s"**[$username](https://${Configuration.rcPath}/direct/$username)** *via rocketchat*\n" +
             MarkdownConverter.rc2gt(text)
           gitter ! MsgSendGitter(id, msg)
         }
