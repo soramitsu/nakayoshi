@@ -7,8 +7,9 @@ import info.mukel.telegrambot4s.clients.AkkaClient
 import info.mukel.telegrambot4s.models.{ChatType, Message}
 
 trait TelegramBot extends BotBase with AkkaImplicits with BotExecutionContext with Commands with Loggable {
+  val host = "api.telegram.org"
   override val logger: Logger = l
-  override val client: RequestHandler = new AkkaClient(token)
+  override val client: RequestHandler = new AkkaClient(token, host)
   val admins: Set[String]
 
   def adminCmd[T : ToCommand](cmds: T*)(func: Message => Unit): Unit =

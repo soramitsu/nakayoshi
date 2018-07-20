@@ -5,6 +5,7 @@ import java.util.{Observable, Observer}
 import com.keysolutions.ddpclient._
 import com.softwaremill.sttp._, akkahttp.AkkaHttpBackend
 import akka.actor.{Actor, ActorRef, ActorSystem}
+import akka.pattern.pipe
 import akka.stream.Materializer
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
@@ -142,7 +143,7 @@ class BotRocketchat(private val pathRaw: String,
 
   override def receive: Receive = {
     case 'getChats =>
-      sender ! getChats()
+      getChats() pipeTo sender()
     case ServerResponse(args) =>
       if(!args.get("msg").contains("ping")) l.info("Rocketchat response: " + args)
       if(args.get("id").contains(loginCall.toString)) {

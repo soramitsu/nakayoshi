@@ -1,5 +1,7 @@
 package jp.co.soramitsu.nakayoshi
 
+import java.util.concurrent.TimeUnit
+
 import akka.actor.{Actor, ActorRef, ActorSystem}
 import akka.pattern.ask
 import akka.stream.ActorMaterializer
@@ -8,7 +10,6 @@ import info.mukel.telegrambot4s.api.Polling
 import info.mukel.telegrambot4s.methods.{GetFile, ParseMode, SendMessage}
 import info.mukel.telegrambot4s.models.{ChatType, Message, MessageEntity, User}
 
-import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
@@ -19,14 +20,14 @@ class BotTg(val token: String, val admins: Set[String])
   extends Actor with TelegramBot with Polling {
 
   private var router: Option[ActorRef] = None
-  implicit val timeout: Timeout = Timeout(2 seconds)
+  implicit val timeout: Timeout = Timeout(2, TimeUnit.SECONDS)
 
   private def save(srcPath: String, localName: String): Future[Unit] = {
     import java.io.File
     import java.net.URL
     import scala.sys.process._
 
-    val url = new URL(s"https://api.telegram.org/file/bot$token/$srcPath")
+    val url = new URL(s"https://$host/file/bot$token/$srcPath")
     val file = new File(Strings.publicPath + localName)
     file.getParentFile.mkdirs()
     Future { url #> file !! }
@@ -59,7 +60,7 @@ class BotTg(val token: String, val admins: Set[String])
   }
 
   adminCmd('gitter_chats) { implicit msg: Message =>
-    (router.get ? 'getGtChats).flatMap(_.asInstanceOf[Future[List[GitterRoom]]]).onComplete {
+    (router.get ? 'getGtChats).mapTo[List[GitterRoom]].onComplete {
       case Success(list) =>
         val message = list.map { room =>
           s"[${room.name}](https://gitter.im/${room.uri})\nID `${room.id}`\n\n"
@@ -72,7 +73,7 @@ class BotTg(val token: String, val admins: Set[String])
   }
 
   adminCmd('telegram_chats) { implicit msg: Message =>
-    (router.get ? 'getTgChats).map(_.asInstanceOf[Seq[(Long, TelegramChat)]]).onComplete {
+    (router.get ? 'getTgChats).mapTo[Seq[(Long, TelegramChat)]].onComplete {
       case Success(list) =>
         val message = list.map { case (id, chat) =>
           val title = chat.title
@@ -87,7 +88,7 @@ class BotTg(val token: String, val admins: Set[String])
   }
 
   adminCmd('rocketchat_chats) { implicit msg: Message =>
-    (router.get ? 'getRcChats).flatMap(_.asInstanceOf[Future[Map[String, String]]]).onComplete {
+    (router.get ? 'getRcChats).mapTo[Map[String, String]].onComplete {
       case Success(list) =>
         val message = list.map { case (id, name) => s"#$name <code>$id</code>\n\n"}
           .foldLeft("<b>Available Rocketchat chats</b>\n\n")(_ + _)
@@ -99,7 +100,7 @@ class BotTg(val token: String, val admins: Set[String])
   }
 
   adminCmd('connections) { implicit msg: Message =>
-    (router.get ? 'getConns).map(_.asInstanceOf[Seq[Connection]]).onComplete {
+    (router.get ? 'getConns).mapTo[Seq[Connection]].onComplete {
       case Success(list) =>
         val message = list.map { conn =>
             s"${conn.tgId.getOrElse("_none_")}; " +
@@ -137,7 +138,7 @@ class BotTg(val token: String, val admins: Set[String])
     if(tokens.length != 2) {
       reply("*Usage:* /rocketchat_join <group_name>\n", parseMode = Some(ParseMode.Markdown))
     } else {
-      (router.get ? MsgRcJoin(tokens(1))).flatMap(_.asInstanceOf[Future[Unit]]).onComplete {
+      (router.get ? MsgRcJoin(tokens(1))).mapTo[Future[Unit]].onComplete {
         case Success(_) =>
           val text = s"Joined Rocketchat chat ${tokens(1)}"
           l.info(text)

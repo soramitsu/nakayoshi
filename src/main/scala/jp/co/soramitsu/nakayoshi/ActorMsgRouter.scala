@@ -1,7 +1,7 @@
 package jp.co.soramitsu.nakayoshi
 
 import akka.actor.{Actor, ActorRef}
-import akka.pattern.ask
+import akka.pattern.{ask, pipe}
 import akka.util.Timeout
 
 import scala.concurrent.duration._
@@ -53,25 +53,25 @@ class ActorMsgRouter(val tg: ActorRef,
   override def receive: Receive = {
     case 'getGtChats =>
       if(System.currentTimeMillis() - gitterChatsLastUpdate < chatlistCacheTTL.toMillis)
-        sender ! gitterChats
+        sender() ! gitterChats
       else {
-        val chats = (gitter ? 'getChats).flatMap(_.asInstanceOf[Future[List[GitterRoom]]])
+        val chats = (gitter ? 'getChats).mapTo[List[GitterRoom]]
         chats.foreach { chats =>
           gitterChatsLastUpdate = System.currentTimeMillis()
           gitterChats = chats
         }
-        sender ! chats
+        chats pipeTo sender()
       }
     case 'getRcChats =>
       if(System.currentTimeMillis() - rcChatsLastUpdate < chatlistCacheTTL.toMillis)
-        sender ! rcChats
+        sender() ! rcChats
       else {
-        val chats = (rocketchat ? 'getChats).flatMap(_.asInstanceOf[Future[Map[String, String]]])
+        val chats = (rocketchat ? 'getChats).mapTo[Map[String, String]]
         chats.foreach { chats =>
           rcChatsLastUpdate = System.currentTimeMillis()
           rcChats = chats
         }
-        sender ! chats
+        chats pipeTo sender()
       }
     case 'getTgChats =>
       sender ! telegramChats.toSeq
@@ -82,7 +82,7 @@ class ActorMsgRouter(val tg: ActorRef,
         ret.foreach { case (_, conn) => addConnection(conn) }
       }
     case m: MsgRcJoin =>
-      sender ! (rocketchat ? m).flatMap(_.asInstanceOf[Future[Unit]])
+      (rocketchat ? m) pipeTo sender()
     case MsgAddTgChat(chatId, chat) =>
       telegramChats.put(chatId, chat)
     case MsgConnect(connection) =>

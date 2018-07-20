@@ -2,6 +2,7 @@ package jp.co.soramitsu.nakayoshi
 
 import akka.Done
 import akka.actor.{Actor, ActorRef, ActorSystem, Timers}
+import akka.pattern.pipe
 import akka.stream.Materializer
 import akka.stream.scaladsl._
 import akka.util.ByteString
@@ -107,7 +108,7 @@ class BotGitter(token: String)
 
   override def receive: Receive = {
     case 'getChats =>
-      sender ! getRooms()
+      getRooms() pipeTo sender()
     case 'updateId =>
       updateSelfId()
     case MsgRun(r) =>
