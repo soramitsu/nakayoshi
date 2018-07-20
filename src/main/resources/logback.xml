@@ -1,12 +1,12 @@
 <configuration>
 
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>./settings/logs/bridge.log</file>
+        <file>./data/logs/bridge.log</file>
         <encoder>
             <pattern>%date [%level] %logger in %thread - %message%n%xException</pattern>
         </encoder>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <fileNamePattern>./settings/logs/bridge.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <fileNamePattern>./data/logs/bridge.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
             <maxFileSize>1GB</maxFileSize>
             <maxHistory>360</maxHistory>
             <totalSizeCap>1GB</totalSizeCap>

@@ -15,7 +15,7 @@ object WebServer {
   private def route(implicit context: ExecutionContext): Route =
     get {
       path(Remaining) { addr: String =>
-        getFromFile(s"${Configuration.fileFolder}/$addr")
+        getFromFile(Strings.publicPath + addr)
       }
     }
 

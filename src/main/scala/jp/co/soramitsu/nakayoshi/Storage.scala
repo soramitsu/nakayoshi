@@ -1,16 +1,13 @@
 package jp.co.soramitsu.nakayoshi
 
 import Types._
-
-import akka.Done
 import slick.jdbc.SQLiteProfile.api._
 
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import scala.concurrent.{Future, ExecutionContext}
 import scala.util.Random
 
 object Storage extends Loggable {
-  private val url = s"jdbc:sqlite:${Configuration.dbPath}"
+  private val url = s"jdbc:sqlite:data/db.sqlite"
   private val db = Database.forURL(url, driver="org.sqlite.JDBC")
   private val photos = TableQuery[DbPhoto]
   private val conns = TableQuery[DbConn]
@@ -45,22 +42,22 @@ object Storage extends Loggable {
     db.run(conns.schema.create)
   }
 
-  def insertConn(conn: Connection): Future[Done] =
-    db.run(conns += (0, conn.tgId, conn.gtId, conn.rcId)).map(_ => Done)
+  def insertConn(conn: Connection)(implicit ec: ExecutionContext): Future[Unit] =
+    db.run(conns += (0, conn.tgId, conn.gtId, conn.rcId)).map(_ => ())
 
   // Get list of all connections
-  def getConns(): Future[Seq[(Int, Connection)]] =
+  def getConns()(implicit ec: ExecutionContext): Future[Seq[(Int, Connection)]] =
     db.run(conns.map(i => (i.telegramId, i.gitterId, i.rocketchatId, i.id)).result).map { seq =>
       seq.map(it => (it._4, Connection(it._1, it._2, it._3)))
     }
 
   // Add to database and return public address
-  def insertFile(token: String, postfix: String): Future[String] = {
+  def insertFile(token: String, postfix: String)(implicit ec: ExecutionContext): Future[String] = {
     val addr = generateAddr() + postfix
     db.run(photos += (token, addr)).map(_ => addr)
   }
 
   // Return an address if it already exists
-  def getAddrByToken(token: String): Future[Option[String]] =
+  def getAddrByToken(token: String)(implicit ec: ExecutionContext): Future[Option[String]] =
     db.run(photos.filter(_.token === token).map(_.addr).result.headOption)
 }

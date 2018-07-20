@@ -8,12 +8,12 @@ import scala.concurrent.ExecutionContextExecutor
 object Main extends App with Loggable {
   implicit val system: ActorSystem = ActorSystem("bridge")
   implicit val materializer: ActorMaterializer = ActorMaterializer()
-  implicit val execContext: ExecutionContextExecutor = system.dispatcher
+  implicit val ec: ExecutionContextExecutor = system.dispatcher
 
   Storage.create()
 
   val botTelegram = system.actorOf(Props(
-    new BotTg(Configuration.tgToken, Configuration.fileFolder, Configuration.tgAdmins)), "botTelegram")
+    new BotTg(Configuration.tgToken, Configuration.tgAdmins)), "botTelegram")
   val botGitter = system.actorOf(Props(
     new BotGitter(Configuration.gtToken)), "botGitter")
   val botRocketchat = system.actorOf(Props(

@@ -8,7 +8,7 @@ import com.typesafe.config.{Config, ConfigFactory}
 object Configuration {
   private val conf: Config = {
     val appConf = ConfigFactory.load()
-    val localConf = new File("settings/local.conf")
+    val localConf = new File(Strings.configPath)
     if (!localConf.isFile) appConf
     else ConfigFactory.parseFile(localConf).withFallback(appConf)
   }
@@ -21,11 +21,14 @@ object Configuration {
   lazy val rcUser: String = conf.getString("rocketchat.user")
   lazy val rcPassword: String = conf.getString("rocketchat.password")
 
-  lazy val fileFolder: String = conf.getString("file-path")
-  lazy val dbPath: String = new File(conf.getString("db-path")).getAbsolutePath
-
   lazy val httpEnabled: Boolean = conf.getBoolean("http.enabled")
   lazy val httpInterface: String = conf.getString("http.interface")
   lazy val httpPort: Int = conf.getInt("http.port")
   lazy val hostname: String = conf.getString("public-hostname")
+}
+
+object Strings {
+  val dataPath = "data/"
+  val configPath = dataPath + "local.conf"
+  val publicPath = dataPath + "public/"
 }

@@ -4,7 +4,6 @@ import akka.actor.{Actor, ActorRef, ActorSystem}
 import akka.pattern.ask
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import info.mukel.telegrambot4s.api.declarative.Commands
 import info.mukel.telegrambot4s.api.Polling
 import info.mukel.telegrambot4s.methods.{GetFile, ParseMode, SendMessage}
 import info.mukel.telegrambot4s.models.{ChatType, Message, MessageEntity, User}
@@ -13,22 +12,22 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
-class BotTg(val token: String, val fileFolder: String, val admins: Set[String])
+class BotTg(val token: String, val admins: Set[String])
            (implicit val system: ActorSystem,
             implicit val executionContext: ExecutionContext,
             implicit val materializer: ActorMaterializer)
-  extends Actor with TelegramBot with Polling with Commands with Loggable {
+  extends Actor with TelegramBot with Polling {
 
   private var router: Option[ActorRef] = None
   implicit val timeout: Timeout = Timeout(2 seconds)
 
   private def save(srcPath: String, localName: String): Future[Unit] = {
-    import java.io.File, File.separator
+    import java.io.File
     import java.net.URL
     import scala.sys.process._
 
     val url = new URL(s"https://api.telegram.org/file/bot$token/$srcPath")
-    val file = new File(fileFolder + separator + localName)
+    val file = new File(Strings.publicPath + localName)
     file.getParentFile.mkdirs()
     Future { url #> file !! }
   }
@@ -46,13 +45,6 @@ class BotTg(val token: String, val fileFolder: String, val admins: Set[String])
           _ <- save(file.filePath.get, path)
         } yield path
     }.andThen { case Failure(e) => l.error("Failed to save file from Telegram", e) }
-  }
-
-  private def adminCmd(cmds: Symbol*)(func: Message => Unit): Unit = onCommand(cmds: _*) { msg =>
-    if(msg.chat.`type` == ChatType.Private) {
-      if(admins.contains(msg.from.get.username.get)) func(msg)
-      else reply("Only the admins can access the bot's commands")(msg)
-    }
   }
 
   adminCmd('help) { implicit msg: Message =>
