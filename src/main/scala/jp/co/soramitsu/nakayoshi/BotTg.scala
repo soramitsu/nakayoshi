@@ -15,12 +15,12 @@ import scala.util.{Failure, Success}
 
 class BotTg(val token: String, val admins: Set[String])
            (implicit val system: ActorSystem,
-            implicit val executionContext: ExecutionContext,
             implicit val materializer: ActorMaterializer)
   extends Actor with TelegramBot with Polling {
 
-  private var router: Option[ActorRef] = None
+  private var router: ActorRef = _
   implicit val timeout: Timeout = Timeout(2, TimeUnit.SECONDS)
+  implicit val executionContext: ExecutionContext = system.dispatcher
 
   private def save(srcPath: String, localName: String): Future[Unit] = {
     import java.io.File
@@ -37,7 +37,7 @@ class BotTg(val token: String, val admins: Set[String])
     import java.nio.file.Paths
     def getFilename(s: String) = Paths.get(s).getFileName.toString
 
-    Storage.getAddrByToken(fileId).flatMap {
+    Storage.getFileAddress(fileId).flatMap {
       case Some(e) => Future.successful(e)
       case None =>
         for {
@@ -60,10 +60,10 @@ class BotTg(val token: String, val admins: Set[String])
   }
 
   adminCmd('gitter_chats) { implicit msg: Message =>
-    (router.get ? 'getGtChats).mapTo[List[GitterRoom]].onComplete {
+    (router ? 'getGtChats).mapTo[List[GitterRoom]].onComplete {
       case Success(list) =>
         val message = list.map { room =>
-          s"[${room.name}](https://gitter.im/${room.uri})\nID `${room.id}`\n\n"
+          s"[${room.name}](https://gitter.im${room.url})\nID `${room.id}`\n\n"
         }.foldLeft("*Available Gitter rooms*\n\n")(_ + _)
         reply(message, parseMode = Some(ParseMode.Markdown))
       case Failure(e) =>
@@ -73,7 +73,7 @@ class BotTg(val token: String, val admins: Set[String])
   }
 
   adminCmd('telegram_chats) { implicit msg: Message =>
-    (router.get ? 'getTgChats).mapTo[Seq[(Long, TelegramChat)]].onComplete {
+    (router ? 'getTgChats).mapTo[Seq[(Long, TelegramChat)]].onComplete {
       case Success(list) =>
         val message = list.map { case (id, chat) =>
           val title = chat.title
@@ -88,7 +88,7 @@ class BotTg(val token: String, val admins: Set[String])
   }
 
   adminCmd('rocketchat_chats) { implicit msg: Message =>
-    (router.get ? 'getRcChats).mapTo[Map[String, String]].onComplete {
+    (router ? 'getRcChats).mapTo[Map[String, String]].onComplete {
       case Success(list) =>
         val message = list.map { case (id, name) => s"#$name <code>$id</code>\n\n"}
           .foldLeft("<b>Available Rocketchat chats</b>\n\n")(_ + _)
@@ -100,7 +100,7 @@ class BotTg(val token: String, val admins: Set[String])
   }
 
   adminCmd('connections) { implicit msg: Message =>
-    (router.get ? 'getConns).mapTo[Seq[Connection]].onComplete {
+    (router ? 'getConns).mapTo[Seq[Connection]].onComplete {
       case Success(list) =>
         val message = list.map { conn =>
             s"${conn.tgId.getOrElse("_none_")}; " +
@@ -127,7 +127,7 @@ class BotTg(val token: String, val admins: Set[String])
       if (Seq(gtRoom, tgRoom, rcRoom).flatten.lengthCompare(2) < 0)
         reply("At least two chat rooms must be specified")
       else {
-        router.get ! MsgConnect(Connection(tgRoom, gtRoom, rcRoom))
+        router ! MsgConnect(Connection(tgRoom, gtRoom, rcRoom))
         reply("Added a new connection")
       }
     }
@@ -138,7 +138,7 @@ class BotTg(val token: String, val admins: Set[String])
     if(tokens.length != 2) {
       reply("*Usage:* /rocketchat_join <group_name>\n", parseMode = Some(ParseMode.Markdown))
     } else {
-      (router.get ? MsgRcJoin(tokens(1))).mapTo[Future[Unit]].onComplete {
+      (router ? MsgRcJoin(tokens(1))).mapTo[Future[Unit]].onComplete {
         case Success(_) =>
           val text = s"Joined Rocketchat chat ${tokens(1)}"
           l.info(text)
@@ -154,7 +154,7 @@ class BotTg(val token: String, val admins: Set[String])
   onMessage { implicit msg: Message =>
     if(msg.chat.`type` == ChatType.Supergroup) {
       val user = msg.from.get
-      router.get ! MsgAddTgChat(msg.chat.id, TelegramChat(msg.chat.title.get, msg.chat.username))
+      router ! MsgAddTgChat(msg.chat.id, TelegramChat(msg.chat.title.get, msg.chat.username))
       l.info(s"Received message from chat ${msg.chat.id}")
       // Save photo or sticker locally and get its local url
       val photoUrl =
@@ -177,10 +177,10 @@ class BotTg(val token: String, val admins: Set[String])
 
       photoUrl match {
         case None =>
-          router.get ! MsgFromTelegram(msg.chat.id, userName, alias, message, None, forward)
+          router ! MsgFromTelegram(msg.chat.id, userName, alias, message, None, forward)
         case Some(future) =>
           future.foreach { url =>
-            router.get ! MsgFromTelegram(msg.chat.id, userName, alias, message, Some(url), forward)
+            router ! MsgFromTelegram(msg.chat.id, userName, alias, message, Some(url), forward)
           }
       }
     }
@@ -188,7 +188,7 @@ class BotTg(val token: String, val admins: Set[String])
 
   override def receive: Receive = {
     case MsgRun(refRouter) =>
-      router = Some(refRouter)
+      router = refRouter
       run()
     case m @ MsgSendTelegram(id, msg) =>
       l.info(s"Sending Telegram message: $m")

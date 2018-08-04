@@ -6,19 +6,18 @@ import com.keysolutions.ddpclient._
 import com.softwaremill.sttp._, akkahttp.AkkaHttpBackend
 import akka.actor.{Actor, ActorRef, ActorSystem}
 import akka.pattern.pipe
-import akka.stream.Materializer
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import org.json4s._, native.JsonMethods.{compact, parse, render}
 
-import scala.concurrent.{ExecutionContextExecutor, Future}
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
 import scala.collection.JavaConverters._
 
 class BotRocketchat(private val pathRaw: String,
                     private val user: String,
                     private val password: String)
-                   (implicit actorSystem: ActorSystem, private val materializer: Materializer)
+                   (implicit actorSystem: ActorSystem)
   extends Actor with Loggable {
 
   private val client = new DDPClient(pathRaw, 443, true)
@@ -28,7 +27,7 @@ class BotRocketchat(private val pathRaw: String,
   private val path = s"https://$pathRaw"
   private implicit val backend: SttpBackend[Future, Source[ByteString, Any]] =
     AkkaHttpBackend.usingActorSystem(actorSystem)
-  private implicit def dispatcher: ExecutionContextExecutor = context.dispatcher
+  import context.dispatcher
 
   private var router: ActorRef = _
 

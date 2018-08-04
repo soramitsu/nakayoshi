@@ -2,13 +2,18 @@ package jp.co.soramitsu.nakayoshi
 
 import akka.actor.{ActorSystem, Props}
 import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.Source
+import akka.util.ByteString
+import com.softwaremill.sttp.SttpBackend
+import com.softwaremill.sttp.akkahttp.AkkaHttpBackend
 
-import scala.concurrent.ExecutionContextExecutor
+import scala.concurrent.{ExecutionContext, Future}
 
 object Main extends App with Loggable {
   implicit val system: ActorSystem = ActorSystem("bridge")
   implicit val materializer: ActorMaterializer = ActorMaterializer()
-  implicit val ec: ExecutionContextExecutor = system.dispatcher
+  implicit val executionContext: ExecutionContext = system.dispatcher
+  implicit val sttpBackend: SttpBackend[Future, Source[ByteString, Any]] = AkkaHttpBackend.usingActorSystem(system)
 
   Storage.create()
 
@@ -23,5 +28,5 @@ object Main extends App with Loggable {
 
   router ! 'updateConnsFromDB
 
-  if(Configuration.httpEnabled) WebServer.start()
+  if (Configuration.httpEnabled) WebServer.start()
 }

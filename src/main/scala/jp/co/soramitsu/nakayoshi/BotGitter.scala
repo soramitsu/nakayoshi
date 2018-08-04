@@ -6,66 +6,50 @@ import akka.pattern.pipe
 import akka.stream.Materializer
 import akka.stream.scaladsl._
 import akka.util.ByteString
-import org.json4s, json4s._, native.JsonMethods._
-import com.softwaremill.sttp._, akkahttp.AkkaHttpBackend
+import org.json4s._, native.JsonMethods._
+import org.json4s.jackson.Serialization.read
+import com.softwaremill.sttp._
 
-import scala.concurrent.{ExecutionContextExecutor, Future}
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
-import scala.util.control.NonFatal
 import scala.concurrent.duration._
 
 class BotGitter(token: String)
-               (implicit actorSystem: ActorSystem, private val materializer: Materializer)
+               (implicit actorSystem: ActorSystem,
+                implicit val sttpBackend: SttpBackend[Future, Source[ByteString, Any]],
+                implicit val materializer: Materializer)
   extends Actor with Loggable with Timers {
 
-  private var router: Option[ActorRef] = None
+  private var router: ActorRef = _
   private var sink: Sink[GitterMessage, Future[Done]] = Sink.ignore
   private var selfId: Option[String] = None
 
-  private implicit def dispatcher: ExecutionContextExecutor = context.dispatcher
+  private implicit val executionContext: ExecutionContext = context.dispatcher
+  private implicit val formats = DefaultFormats
 
   private val commonHeaders = Seq(
     "Accept" -> "application/json",
     "Authorization" -> s"Bearer $token"
   )
-  private implicit val backend: SttpBackend[Future, Source[ByteString, Any]] =
-    AkkaHttpBackend.usingActorSystem(actorSystem)
 
-  private def sendMsg(roomId: String, msg: String): Unit = {
+  private def sendMsg(roomId: String, msg: String): Future[Unit] = {
     val url = uri"https://api.gitter.im/v1/rooms/$roomId/chatMessages"
     val headers = commonHeaders :+ ("Content-Type" -> "application/json")
     val bodyJson = JObject("text" -> JString(msg))
     val body = compact(render(bodyJson))
-    sttp.headers(headers: _*).body(body).post(url).send()
+    sttp.headers(headers: _*).body(body).post(url).send().map(_ => ())
   }
 
   private val roomsUrl = uri"https://api.gitter.im/v1/rooms"
-  private def getRooms(): Future[List[GitterRoom]] = {
-    val response: Future[Response[String]] = sttp.headers(commonHeaders: _*).get(roomsUrl).send()
-    response.map(_.body).collect {
+  private def getRooms(): Future[List[GitterRoom]] =
+    sttp.headers(commonHeaders: _*).get(roomsUrl).send().map(_.body).collect {
       case Right(body) =>
-        val json = parse(string2JsonInput(body))
-        json.asInstanceOf[JArray].arr.flatMap {
-          case it: JObject =>
-            val obj: Map[String, json4s.JValue] = it.obj.toMap
-            if(obj.contains("id") && obj.contains("name") && obj.contains("uri") &&
-              obj.contains("groupId") && obj("groupId").isInstanceOf[JString]) {
-              Some(GitterRoom(
-                obj("id").asInstanceOf[JString].s,
-                obj("name").asInstanceOf[JString].s,
-                obj("uri").asInstanceOf[JString].s,
-                obj("groupId").asInstanceOf[JString].s))
-            } else None
-          case _ => None
-        }
+        read[List[GitterRoom]](body)
     }
-  }
 
   private def getMessages(room: String): Future[Response[Source[ByteString, Any]]] = {
     val url = uri"https://stream.gitter.im/v1/rooms/$room/chatMessages"
-    sttp.headers(commonHeaders: _*)
-      .response(asStream[Source[ByteString, Any]])
-      .get(url).send()
+    sttp.headers(commonHeaders: _*).response(asStream[Source[ByteString, Any]]).get(url).send()
   }
 
   private def parseMessage(id: String, body: String): Option[GitterMessage] = {
@@ -89,9 +73,8 @@ class BotGitter(token: String)
   }
 
   private val selfUrl = uri"https://api.gitter.im/v1/user"
-  private def updateSelfId(): Unit = {
-    val response: Future[Response[String]] = sttp.headers(commonHeaders: _*).get(selfUrl).send()
-    response.map(_.body).map {
+  private def updateSelfId(): Future[Unit] = {
+    sttp.headers(commonHeaders: _*).get(selfUrl).send().map(_.body).map {
       case Right(body) =>
         val json = parse(string2JsonInput(body))
         val first = json.asInstanceOf[JArray].arr.head.asInstanceOf[JObject].obj.toMap
@@ -100,9 +83,8 @@ class BotGitter(token: String)
       case Left(str) =>
         l.error(s"Failed to update Gitter self id, msg: $str")
         timers.startSingleTimer('idUpdate, 'updateId, 1 minute)
-    }.recover {
-      case NonFatal(e) =>
-        l.error("Failed to update Gitter self id", e)
+    }.andThen { case Failure(th) =>
+      l.error("Failed to update Gitter self id", th)
     }
   }
 
@@ -112,10 +94,10 @@ class BotGitter(token: String)
     case 'updateId =>
       updateSelfId()
     case MsgRun(r) =>
-      router = Some(r)
+      router = r
       // Initialize sink to accept all incoming Gitter messages
       // It is used for all room listeners
-      sink = Sink.foreach(r ! _)
+      sink = Sink.foreach(router ! _)
       updateSelfId() // Retrieve its own ID for filtering its messages
     case MsgGitterListen(id) =>
       getMessages(id).map(_.body).map {
@@ -124,7 +106,7 @@ class BotGitter(token: String)
           src.via(Framing.delimiter(ByteString(10), maximumFrameLength = 8192))
             .map(it => parseMessage(id, it.utf8String))
             .collect { case Some(msg) if !this.selfId.contains(msg.userId) && msg.userUrl != Configuration.gtUsername => msg }
-            .runForeach { msg => router.foreach(_ ! msg) }
+            .runForeach { msg => router ! msg }
             .onComplete {
               case Success(_) =>
                 l.info(s"Stopped listening to Gitter chat $id, restarting.")
@@ -137,8 +119,8 @@ class BotGitter(token: String)
           l.error(s"Failed to initiate connection to Gitter chat $id, msg: $str")
           timers.startSingleTimer(Symbol(id), MsgGitterListen(id), 1 minute)
 
-      }.recover {
-        case NonFatal(e) => l.error(s"Failed to initiate connection to Gitter chat $id", e)
+      }.recover { case th =>
+        l.error(s"Failed to initiate connection to Gitter chat $id", th)
       }
     case MsgSendGitter(id, text) =>
       sendMsg(id, text)
