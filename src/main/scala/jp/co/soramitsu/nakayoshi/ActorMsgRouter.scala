@@ -1,12 +1,14 @@
 package jp.co.soramitsu.nakayoshi
 
+import jp.co.soramitsu.nakayoshi.Types._
+import jp.co.soramitsu.nakayoshi.Storage.insertMessage
 import akka.actor.{Actor, ActorRef}
 import akka.pattern.{ask, pipe}
 import akka.util.Timeout
 
 import scala.concurrent.duration._
 import scala.collection.mutable
-import scala.concurrent.{ExecutionContextExecutor, Future}
+import scala.concurrent.ExecutionContext
 
 class ActorMsgRouter(val tg: ActorRef,
                      val gitter: ActorRef,
@@ -18,7 +20,7 @@ class ActorMsgRouter(val tg: ActorRef,
   gitter ! MsgRun(self)
   rocketchat ! MsgRun(self)
 
-  private implicit def dispatcher: ExecutionContextExecutor = context.dispatcher
+  private implicit def dispatcher: ExecutionContext = context.dispatcher
 
   private val telegramChats = mutable.HashMap[Long, TelegramChat]()
   private var gitterChats = List[GitterRoom]()
@@ -88,21 +90,26 @@ class ActorMsgRouter(val tg: ActorRef,
     case MsgConnect(connection) =>
       addConnection(connection)
       Storage.insertConn(connection)
-    case m @ MsgFromTelegram(chatId, user, alias, msg, file, fwd) =>
+    case m @ MsgFromTelegram(chatId, msgId, user, alias, msg, file, fwd) =>
       l.info("Telegram message received: " + m.toString)
+      val messageId = insertMessage(ConnectedMessage.create(telegram=Some(chatId, msgId)))
       val userfill = alias.fold(user)(alias => s"[$user](https://t.me/$alias)")
       if(msg.isDefined || file.isDefined) connsTg.get(chatId).foreach { conn =>
         conn.gtId.foreach { id =>
           val text = s"**$userfill** *" + fwd.fold("")(_ + " ") + "via telegram*\n" +
             file.fold("")(url => s"![Photo]($hostname$url)\n") +
             msg.fold("") { case (str, ents) => MarkdownConverter.tg2gt(str, ents) }
-          gitter ! MsgSendGitter(id, text)
+          val msgId = (gitter ? MsgSendGitter(id, text)).mapTo[MsgGt]
+          for (dbId <- messageId; gtId <- msgId)
+            Storage.setMessageGitter(dbId, id, gtId)
         }
         conn.rcId.foreach { id =>
           val text = s"*$userfill* _" + fwd.fold("")(_ + " ") + "via telegram_\n" +
             file.fold("")(url => s"![Photo]($hostname$url)\n") +
             msg.fold("") { case (str, ents) => MarkdownConverter.tg2rc(str, ents) }
-          rocketchat ! MsgSendGitter(id, text)
+          val msgId = (rocketchat ? MsgSendGitter(id, text)).mapTo[MsgRc]
+          for (dbId <- messageId; rcId <- msgId)
+            Storage.setMessageRocketchat(dbId, id, rcId)
         }
       }
     case m @ GitterMessage(chatId, _, username, userUrl, text) =>

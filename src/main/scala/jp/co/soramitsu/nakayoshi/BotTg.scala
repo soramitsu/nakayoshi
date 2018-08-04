@@ -3,7 +3,7 @@ package jp.co.soramitsu.nakayoshi
 import java.util.concurrent.TimeUnit
 
 import akka.actor.{Actor, ActorRef, ActorSystem}
-import akka.pattern.ask
+import akka.pattern.{ask, pipe}
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import info.mukel.telegrambot4s.api.Polling
@@ -20,7 +20,7 @@ class BotTg(val token: String, val admins: Set[String])
 
   private var router: ActorRef = _
   implicit val timeout: Timeout = Timeout(2, TimeUnit.SECONDS)
-  implicit val executionContext: ExecutionContext = system.dispatcher
+  lazy implicit val executionContext: ExecutionContext = system.dispatcher
 
   private def save(srcPath: String, localName: String): Future[Unit] = {
     import java.io.File
@@ -55,7 +55,7 @@ class BotTg(val token: String, val admins: Set[String])
       "/telegram\\_chats - show Telegram chats (may include unavailable chats)\n" +
       "/rocketchat\\_chats - show Rocketchat chats\n" +
       "/connections - show all connections\n" +
-      "/connect <gitter\\_room\\_id> <telegram\\_chat\\_id> <rocketchat\\_channel\\_id> - add a new connection (`none` instead of ID is fine)",
+      "/connect <telegram\\_chat\\_id> <gitter\\_room\\_id> <rocketchat\\_channel\\_id> - add a new connection (`none` instead of ID is fine)",
       parseMode = Some(ParseMode.Markdown))
   }
 
@@ -117,11 +117,11 @@ class BotTg(val token: String, val admins: Set[String])
   adminCmd('connect) { implicit msg: Message =>
     val tokens = msg.text.get.split(' ')
     if(tokens.length != 4) {
-      reply("*Usage:* /connect <gitter\\_room\\_id> <telegram\\_chat\\_id> <rocketchat\\_channel\\_id>\n" +
+      reply("*Usage:* /connect <telegram\\_chat\\_id> <gitter\\_room\\_id> <rocketchat\\_channel\\_id>\n" +
         "Type `none` instead of ID if there is no room to connect", parseMode = Some(ParseMode.Markdown))
     } else {
-      val tgRoom = try Some(tokens(2).toLong) catch { case e: NumberFormatException => None }
-      val gtRoom = if (tokens(1) != "none") Some(tokens(1)) else None
+      val tgRoom = try Some(tokens(1).toLong) catch { case e: NumberFormatException => None }
+      val gtRoom = if (tokens(2) != "none") Some(tokens(1)) else None
       val rcRoom = if (tokens(3) != "none") Some(tokens(3)) else None
 
       if (Seq(gtRoom, tgRoom, rcRoom).flatten.lengthCompare(2) < 0)
@@ -177,10 +177,10 @@ class BotTg(val token: String, val admins: Set[String])
 
       photoUrl match {
         case None =>
-          router ! MsgFromTelegram(msg.chat.id, userName, alias, message, None, forward)
+          router ! MsgFromTelegram(msg.chat.id, msg.messageId, userName, alias, message, None, forward)
         case Some(future) =>
           future.foreach { url =>
-            router ! MsgFromTelegram(msg.chat.id, userName, alias, message, Some(url), forward)
+            router ! MsgFromTelegram(msg.chat.id, msg.messageId, userName, alias, message, Some(url), forward)
           }
       }
     }
@@ -193,5 +193,6 @@ class BotTg(val token: String, val admins: Set[String])
     case m @ MsgSendTelegram(id, msg) =>
       l.info(s"Sending Telegram message: $m")
       request(SendMessage(id, msg, parseMode = Some(ParseMode.Markdown), disableWebPagePreview = Some(true)))
+        .map(_.messageId) pipeTo sender()
   }
 }

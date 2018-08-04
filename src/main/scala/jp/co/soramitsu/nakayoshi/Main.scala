@@ -7,7 +7,8 @@ import akka.util.ByteString
 import com.softwaremill.sttp.SttpBackend
 import com.softwaremill.sttp.akkahttp.AkkaHttpBackend
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration._
+import scala.concurrent.{Await, ExecutionContext, Future}
 
 object Main extends App with Loggable {
   implicit val system: ActorSystem = ActorSystem("bridge")
@@ -15,7 +16,7 @@ object Main extends App with Loggable {
   implicit val executionContext: ExecutionContext = system.dispatcher
   implicit val sttpBackend: SttpBackend[Future, Source[ByteString, Any]] = AkkaHttpBackend.usingActorSystem(system)
 
-  Storage.create()
+  Await.ready(Storage.create(), Duration(1, MINUTES))
 
   val botTelegram = system.actorOf(Props(
     new BotTg(Configuration.tgToken, Configuration.tgAdmins)), "botTelegram")

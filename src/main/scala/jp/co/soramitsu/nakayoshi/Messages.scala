@@ -7,7 +7,7 @@ import info.mukel.telegrambot4s.models.MessageEntity
 case class MsgRun(router: ActorRef)
 
 // When a message is received, sent to the router
-case class MsgFromTelegram(chatId: Long, user: String, alias: Option[String],
+case class MsgFromTelegram(chatId: Long, msgId: Long, user: String, alias: Option[String],
                            msg: Option[(String, Seq[MessageEntity])],
                            fileUrl: Option[String], fwd: Option[String])
 //GitterMessage from Model.scala is used for doing the same with Gitter

@@ -2,16 +2,17 @@ package jp.co.soramitsu.nakayoshi
 
 import java.util.{Observable, Observer}
 
+import jp.co.soramitsu.nakayoshi.Types._
 import com.keysolutions.ddpclient._
 import com.softwaremill.sttp._, akkahttp.AkkaHttpBackend
 import akka.actor.{Actor, ActorRef, ActorSystem}
 import akka.pattern.pipe
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
-import org.json4s._, native.JsonMethods.{compact, parse, render}
+import org.json4s._, native.JsonMethods._
+import org.json4s.jackson.Serialization.read
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.control.NonFatal
 import scala.collection.JavaConverters._
 
 class BotRocketchat(private val pathRaw: String,
@@ -24,10 +25,10 @@ class BotRocketchat(private val pathRaw: String,
   private var observer: RCObserver = _
   private var listenQueue: Seq[String] = Seq()
 
-  private val path = s"https://$pathRaw"
   private implicit val backend: SttpBackend[Future, Source[ByteString, Any]] =
     AkkaHttpBackend.usingActorSystem(actorSystem)
-  import context.dispatcher
+  private lazy implicit val executionContext: ExecutionContext = context.dispatcher
+  private implicit val formats: Formats = DefaultFormats
 
   private var router: ActorRef = _
 
@@ -44,7 +45,16 @@ class BotRocketchat(private val pathRaw: String,
     "Content-Type" -> "application/json"
   )
 
+  private val path = s"https://$pathRaw"
   private val loginUrl = uri"$path/api/v1/login"
+  private val joinUrl = uri"$path/api/v1/channels.join"
+  private val joinedUrl = uri"$path/api/v1/channels.list.joined"
+  private val messageUrl = uri"$path/api/v1/chat.postMessage"
+  private def chanInfoUrl(name: String) = uri"$path/api/v1/channels.info?roomName=$name"
+
+  private case class Message(_id: String, msg: String, u: User)
+  private case class User(_id: String, name: String, username: String)
+  private case class PostActionResult(channel: String, message: Message)
 
   /**
     * Tries to login into the Rocketchat
@@ -57,10 +67,9 @@ class BotRocketchat(private val pathRaw: String,
         val data = parse(string2JsonInput(body)).asInstanceOf[JObject].values("data").asInstanceOf[Map[String, Any]]
         l.info("Logged into a Rocketchat account")
         (data("authToken").asInstanceOf[String], data("userId").asInstanceOf[String])
-    }.recover {
-      case NonFatal(e) =>
-        l.error("Failed to log into a Rocketchat account", e)
-        throw e
+    }.recover { case th =>
+      l.error("Failed to log into a Rocketchat account", th)
+      throw th
     }
   }
 
@@ -70,19 +79,16 @@ class BotRocketchat(private val pathRaw: String,
     * @return future with the group's ID
     */
   private def getChanId(name: String): Future[String] = {
-    val url = uri"$path/api/v1/channels.info?roomName=$name"
-    sttp.headers(commonHeaders ++ authHeaders: _*).get(url).send().map(_.body).collect {
+    sttp.headers(commonHeaders ++ authHeaders: _*).get(chanInfoUrl(name)).send().map(_.body).collect {
       case Right(body) =>
         parse(string2JsonInput(body)).asInstanceOf[JObject]
           .values("channel").asInstanceOf[Map[String, Any]]("_id").asInstanceOf[String]
-    }.recover {
-      case NonFatal(e) =>
-        l.error("Failed to login into Rocketchat account", e)
-        throw e
+    }.recover { case th =>
+      l.error("Failed to login into Rocketchat account", th)
+      throw th
     }
   }
 
-  private val joinUrl = uri"$path/api/v1/channels.join"
 
   /**
     * Joins the group
@@ -95,14 +101,12 @@ class BotRocketchat(private val pathRaw: String,
       case Right(_) =>
         l.info(s"Joined Rocketchat room #$id")
         ()
-    }.recover {
-      case NonFatal(e) =>
-        l.error("Failed to join a Rocketchat room", e)
-        throw e
+    }.recover { case th =>
+      l.error("Failed to join a Rocketchat room", th)
+      throw th
     }
   }
 
-  private val joinedUrl = uri"$path/api/v1/channels.list.joined"
 
   /**
     * Get map of joined chats
@@ -116,23 +120,20 @@ class BotRocketchat(private val pathRaw: String,
           val i = it.asInstanceOf[Map[String, Any]]
           (i("_id").asInstanceOf[String], i("name").asInstanceOf[String])
         }.toMap
-    }.recover {
-      case NonFatal(e) =>
-        l.error("Failed to send into a Rocketchat group", e)
-        throw e
+    }.recover { case th =>
+      l.error("Failed to send into a Rocketchat group", th)
+      throw th
     }
   }
 
-  private val messageUrl = uri"$path/api/v1/chat.postMessage"
-  private def sendMessage(id: String, msg: String): Future[Unit] = {
+  private def sendMessage(id: String, msg: String): Future[MsgRc] = {
     val bodyJson = JObject("roomId" -> JString(id), "text" -> JString(msg))
-    sttp.headers(commonHeaders ++ authHeaders: _*).body(compact(render(bodyJson))).post(messageUrl).send().map(_.body).collect {
-      case Right(_) => ()
-    }.recover {
-      case NonFatal(e) =>
-        l.error("Failed to send into a Rocketchat group", e)
-        throw e
-    }
+    sttp.headers(commonHeaders ++ authHeaders: _*).body(compact(render(bodyJson))).post(messageUrl).send()
+      .map(_.body).collect { case Right(body) => read[PostActionResult](body).message._id }
+      .recover { case th =>
+        l.error("Failed to send into a Rocketchat group", th)
+        throw th
+      }
   }
 
   private def subscribe(id: String): Unit = {
@@ -149,7 +150,7 @@ class BotRocketchat(private val pathRaw: String,
         loggedIn = true
         listenQueue.foreach(subscribe)
         listenQueue = Seq()
-      } else if(args.get("msg").contains("changed") && args.get("collection").contains("stream-room-messages")) {
+      } else if (args.get("msg").contains("changed") && args.get("collection").contains("stream-room-messages")) {
         args("fields").asInstanceOf[Map[String, Any]]("args").asInstanceOf[Seq[Any]].foreach { case info: Map[String, Any] =>
           val chat = info("rid").asInstanceOf[String]
           val username = info("u").asInstanceOf[Map[String, Any]]("username").asInstanceOf[String]
@@ -161,15 +162,15 @@ class BotRocketchat(private val pathRaw: String,
         }
       }
     case MsgSendGitter(id, text) =>
-      sendMessage(id, text)
+      sendMessage(id, text) pipeTo sender()
     case MsgRun(r) =>
       observer = new RCObserver(self)
       router = r
       client.connect()
       client.addObserver(observer)
       login().foreach { case (token, id) =>
-          loginCall = client.call("login", Array(new TokenAuth(token)))
-          tokenId = Some((token, id))
+        loginCall = client.call("login", Array(new TokenAuth(token)))
+        tokenId = Some((token, id))
       }
     case MsgRcJoin(name) =>
       sender ! getChanId(name).map(joinChat)
