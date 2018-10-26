@@ -112,7 +112,7 @@ class BotGitter(token: String)
           l.info(s"Started listening to Gitter chat $id")
           src.via(Framing.delimiter(streamDelimeter, maximumFrameLength))
             .map(it => parseMessage(id, it.utf8String))
-            .collect { case Some(msg) if !msg.content.contains("via") => msg }
+            .collect { case Some(msg) if !this.selfId.contains(msg.userId) && msg.userUrl != Configuration.gtUsername => msg }
             .runForeach { msg => router ! msg }
             .onComplete {
               case Success(_) =>
