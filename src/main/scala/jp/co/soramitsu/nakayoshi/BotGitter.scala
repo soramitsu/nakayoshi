@@ -10,13 +10,19 @@ import akka.stream.Materializer
 import akka.stream.scaladsl._
 import akka.util.ByteString
 import org.json4s._
-import org.json4s.native.JsonMethods._
-import org.json4s.jackson.Serialization.read
+import org.json4s.native.JsonMethods.{render, compact}
+import org.json4s.native.JsonParser.parse
+import org.json4s.native.Serialization.read
 import com.softwaremill.sttp._
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 import scala.concurrent.duration._
+
+
+case class GtInnerMessage(text: String, id: String)
+case class GtInnerUser(id: String, displayName: String, url: String)
+
 
 class BotGitter(token: String)
                (implicit actorSystem: ActorSystem,
@@ -44,15 +50,12 @@ class BotGitter(token: String)
   private def messagesUrl(room: String) = uri"https://api.gitter.im/v1/rooms/$room/chatMessages"
   private def messagesStream(room: String) = uri"https://stream.gitter.im/v1/rooms/$room/chatMessages"
 
-  private case class Message(text: String, fromUser: User, id: String)
-  private case class User(id: String, displayName: String, url: String)
-
   private def sendMsg(room: String, msg: String): Future[MsgGt] = {
     val headers = commonHeaders :+ ("Content-Type" -> "application/json")
     val bodyJson = JObject("text" -> JString(msg))
     val body = compact(render(bodyJson))
     sttp.headers(headers: _*).body(body).post(messagesUrl(room)).send()
-      .map(_.body).collect { case Right(v) => read[Message](v).id }
+      .map(_.body).collect { case Right(v) => read[GtInnerMessage](v).id }
   }
 
   private def getRooms(): Future[List[GitterRoom]] =
@@ -63,10 +66,11 @@ class BotGitter(token: String)
     sttp.headers(commonHeaders: _*).response(asStream[Source[ByteString, Any]]).get(messagesStream(room)).send()
 
   private def parseMessage(id: String, body: String): Option[MsgFromGitter] = {
-    parse(string2JsonInput(body)) match {
+    parse(body) match {
       case j: JObject =>
-        val msg = j.extract[Message]
-        Some(MsgFromGitter(id, msg.id, msg.fromUser.id, msg.fromUser.displayName, msg.fromUser.url, msg.text))
+        val msg = j.extract[GtInnerMessage]
+        val fromUser = j.obj.find(_._1 == "fromUser").get._2.extract[GtInnerUser]
+        Some(MsgFromGitter(id, msg.id, fromUser.id, fromUser.displayName, fromUser.url, msg.text))
       case JNothing =>
         None
       case _ =>
@@ -79,7 +83,7 @@ class BotGitter(token: String)
   private def updateSelfId(): Future[Unit] = {
     sttp.headers(commonHeaders: _*).get(selfUrl).send().map(_.body).map {
       case Right(body) =>
-        val json = parse(string2JsonInput(body))
+        val json = parse(body)
         val first = json.asInstanceOf[JArray].arr.head.asInstanceOf[JObject].obj.toMap
         selfId = Some(first("id").asInstanceOf[JString].s)
         selfId.foreach(id => l.info(s"Set Gitter self id as $id"))
@@ -108,7 +112,7 @@ class BotGitter(token: String)
           l.info(s"Started listening to Gitter chat $id")
           src.via(Framing.delimiter(streamDelimeter, maximumFrameLength))
             .map(it => parseMessage(id, it.utf8String))
-            .collect { case Some(msg) if !this.selfId.contains(msg.userId) && msg.userUrl != Configuration.gtUsername => msg }
+            .collect { case Some(msg) if !msg.content.contains("via") => msg }
             .runForeach { msg => router ! msg }
             .onComplete {
               case Success(_) =>

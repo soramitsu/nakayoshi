@@ -12,11 +12,18 @@ import akka.pattern.pipe
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import org.json4s._
-import org.json4s.native.JsonMethods._
-import org.json4s.jackson.Serialization.read
+import org.json4s.native.JsonMethods.{render, compact}
+import org.json4s.native.JsonParser.parse
+import org.json4s.native.Serialization.read
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.collection.JavaConverters._
+
+
+case class RcInnerMessage(_id: String, msg: String, u: RcInnerUser)
+case class RcInnerUser(_id: String, name: String, username: String)
+case class RcInnerPostActionResult(channel: String, message: RcInnerMessage)
+
 
 class BotRocketchat(private val pathRaw: String,
                     private val user: String,
@@ -55,10 +62,6 @@ class BotRocketchat(private val pathRaw: String,
   private val messageUrl = uri"$path/api/v1/chat.postMessage"
   private def chanInfoUrl(name: String) = uri"$path/api/v1/channels.info?roomName=$name"
 
-  private case class Message(_id: String, msg: String, u: User)
-  private case class User(_id: String, name: String, username: String)
-  private case class PostActionResult(channel: String, message: Message)
-
   /**
     * Tries to login into the Rocketchat
     * @return future with token and user ID
@@ -67,7 +70,7 @@ class BotRocketchat(private val pathRaw: String,
     val bodyJson = JObject("username" -> JString(user), "password" -> JString(password))
     sttp.headers(commonHeaders: _*).body(compact(render(bodyJson))).post(loginUrl).send().map(_.body).collect {
       case Right(body) =>
-        val data = parse(string2JsonInput(body))
+        val data = parse(body)
           .asInstanceOf[JObject].values("data")
           .asInstanceOf[Map[String, Any]]
         l.info("Logged into a Rocketchat account")
@@ -86,7 +89,7 @@ class BotRocketchat(private val pathRaw: String,
   private def getChanId(name: String): Future[String] = {
     sttp.headers(commonHeaders ++ authHeaders: _*).get(chanInfoUrl(name)).send().map(_.body).collect {
       case Right(body) =>
-        parse(string2JsonInput(body)).asInstanceOf[JObject]
+        parse(body).asInstanceOf[JObject]
           .values("channel").asInstanceOf[Map[String, Any]]("_id").asInstanceOf[String]
     }.recover { case th =>
       l.error("Failed to login into Rocketchat account", th)
@@ -120,7 +123,7 @@ class BotRocketchat(private val pathRaw: String,
   private def getChats(): Future[Map[String, String]] = {
     sttp.headers(commonHeaders ++ authHeaders: _*).get(joinedUrl).send().map(_.body).collect {
       case Right(body) =>
-        parse(string2JsonInput(body)).asInstanceOf[JObject]
+        parse(body).asInstanceOf[JObject]
           .values("channels").asInstanceOf[List[Any]]
           .map { it =>
             val i = it.asInstanceOf[Map[String, Any]]
@@ -135,7 +138,7 @@ class BotRocketchat(private val pathRaw: String,
   private def sendMessage(id: String, msg: String): Future[MsgRc] = {
     val bodyJson = JObject("roomId" -> JString(id), "text" -> JString(msg))
     sttp.headers(commonHeaders ++ authHeaders: _*).body(compact(render(bodyJson))).post(messageUrl).send()
-      .map(_.body).collect { case Right(body) => read[PostActionResult](body).message._id }
+      .map(_.body).collect { case Right(body) => read[RcInnerPostActionResult](body).message._id }
       .recover { case th =>
         l.error("Failed to send into a Rocketchat group", th)
         throw th

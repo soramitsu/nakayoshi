@@ -54,11 +54,13 @@ case class MsgFromGitter(chatId: ChatGt, msgId: MsgGt, userId: String, username:
 
   override def triggersConnection(conn: Connection): Boolean = conn.gtId.contains(chatId)
 
-  override def toTelegram(id: ChatTg)(implicit hs: HandlerSettings): Option[Any] = Some(MsgSendTelegram(id,
-    s"[$username](https://gitter.im$userUrl) _via gitter_\n" +
-      MarkdownConverter.gt2tg(content)
-  ))
-
+  override def toTelegram(id: ChatTg)(implicit hs: HandlerSettings): Option[Any] = {
+    val message =
+      s"[$username](https://gitter.im$userUrl) _via gitter_\n" +
+        MarkdownConverter.gt2tg(content)
+    val fallback = s"$username via gitter\n" + content
+    Some(MsgSendTelegram(id, message, fallback))
+  }
 
   override def toGitter(id: ChatGt)(implicit hs: HandlerSettings): Option[Any] = None
 
@@ -75,11 +77,13 @@ case class MsgFromRocketchat(chatId: ChatRc, msgId: MsgRc, username: String, con
 
   override def triggersConnection(conn: Connection): Boolean = conn.gtId.contains(chatId)
 
-  override def toTelegram(id: ChatTg)(implicit hs: HandlerSettings): Option[Any] = Some(MsgSendTelegram(id,
-    s"[$username](https://${Configuration.rcPath}/direct/$username) _via rocketchat_\n" +
-      MarkdownConverter.gt2tg(content)
-  ))
-
+  override def toTelegram(id: ChatTg)(implicit hs: HandlerSettings): Option[Any] = {
+    val message =
+      s"[$username](https://${Configuration.rcPath}/direct/$username) _via rocketchat_\n" +
+        MarkdownConverter.gt2tg(content)
+    val fallback = s"$username via gitter\n" + content
+    Some(MsgSendTelegram(id, message, fallback))
+  }
 
   override def toGitter(id: ChatGt)(implicit hs: HandlerSettings): Option[Any] = Some(MsgSendGitter(id,
       s"**[$username](https://${Configuration.rcPath}/direct/$username)** *via rocketchat*\n" +
@@ -96,7 +100,7 @@ case class MsgGitterListen(id: String) // Initiate a listening connection to a G
 
 // For sending messages
 case class MsgSendGitter(id: String, text: String) // Not only Gitter but Rocketchat also :)
-case class MsgSendTelegram(id: Long, text: String)
+case class MsgSendTelegram(id: Long, text: String, fallback: String)
 
 case class MsgRcJoin(name: String)
 case class MsgRcListen(id: String)

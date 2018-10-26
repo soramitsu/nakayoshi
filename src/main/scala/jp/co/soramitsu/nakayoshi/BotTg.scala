@@ -6,7 +6,7 @@ import akka.actor.{Actor, ActorRef, ActorSystem}
 import akka.pattern.{ask, pipe}
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import info.mukel.telegrambot4s.api.Polling
+import info.mukel.telegrambot4s.api.{Polling, TelegramApiException}
 import info.mukel.telegrambot4s.methods.{GetFile, ParseMode, SendMessage}
 import info.mukel.telegrambot4s.models.{ChatType, Message, MessageEntity, User}
 
@@ -191,9 +191,14 @@ class BotTg(val token: String, val admins: Set[String])
     case MsgRun(refRouter) =>
       router = refRouter
       run()
-    case m @ MsgSendTelegram(id, msg) =>
+    case m @ MsgSendTelegram(id, msg, fallback) =>
       l.info(s"Sending Telegram message: $m")
       request(SendMessage(id, msg, parseMode = Some(ParseMode.Markdown), disableWebPagePreview = Some(true)))
-        .map(_.messageId) pipeTo sender()
+        .map(Future.successful)
+        .recover {
+          case e: TelegramApiException =>
+            l.warn("Caught exception while sending, fallback without markdown", e)
+            request(SendMessage(id, fallback, parseMode = None, disableWebPagePreview = Some(true)))
+      }.flatten.map(_.messageId) pipeTo sender()
   }
 }
