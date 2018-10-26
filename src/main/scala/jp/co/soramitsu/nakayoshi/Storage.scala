@@ -1,5 +1,7 @@
 package jp.co.soramitsu.nakayoshi
 
+import java.io.File
+
 import jp.co.soramitsu.nakayoshi.Types._
 import jp.co.soramitsu.nakayoshi.internals.Loggable
 import slick.dbio.Effect
@@ -30,7 +32,7 @@ object ConnectedMessage {
 }
 
 object Storage extends Loggable {
-  private val url = s"jdbc:sqlite:data/db.sqlite"
+  private val url = s"jdbc:sqlite:" + new File("data/db.sqlite").getAbsolutePath
   private val db = Database.forURL(url, driver = "org.sqlite.JDBC")
   private val rand = new Random()
   val files = TableQuery[TableFiles]

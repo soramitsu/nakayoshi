@@ -122,7 +122,7 @@ class BotTg(val token: String, val admins: Set[String])
         "Type `none` instead of ID if there is no room to connect", parseMode = Some(ParseMode.Markdown))
     } else {
       val tgRoom = try Some(tokens(1).toLong) catch { case e: NumberFormatException => None }
-      val gtRoom = if (tokens(2) != "none") Some(tokens(1)) else None
+      val gtRoom = if (tokens(2) != "none") Some(tokens(2)) else None
       val rcRoom = if (tokens(3) != "none") Some(tokens(3)) else None
 
       if (Seq(gtRoom, tgRoom, rcRoom).flatten.lengthCompare(2) < 0)
