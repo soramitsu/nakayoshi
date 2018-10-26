@@ -4,5 +4,6 @@
 target/
 local.conf
 *.sqlite
+*.sqlite3
 /*.log.gz
 /*.log

@@ -1,5 +1,7 @@
 package jp.co.soramitsu.nakayoshi
 
+import jp.co.soramitsu.nakayoshi.internals.Loggable
+
 import akka.actor.{ActorSystem, Props}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source

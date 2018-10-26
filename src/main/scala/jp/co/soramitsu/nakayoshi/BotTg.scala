@@ -1,6 +1,6 @@
 package jp.co.soramitsu.nakayoshi
 
-import java.util.concurrent.TimeUnit
+import jp.co.soramitsu.nakayoshi.internals.TelegramBot
 
 import akka.actor.{Actor, ActorRef, ActorSystem}
 import akka.pattern.{ask, pipe}
@@ -10,6 +10,7 @@ import info.mukel.telegrambot4s.api.Polling
 import info.mukel.telegrambot4s.methods.{GetFile, ParseMode, SendMessage}
 import info.mukel.telegrambot4s.models.{ChatType, Message, MessageEntity, User}
 
+import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
@@ -19,7 +20,7 @@ class BotTg(val token: String, val admins: Set[String])
   extends Actor with TelegramBot with Polling {
 
   private var router: ActorRef = _
-  implicit val timeout: Timeout = Timeout(2, TimeUnit.SECONDS)
+  implicit val timeout: Timeout = Timeout(2, SECONDS)
   lazy implicit val executionContext: ExecutionContext = system.dispatcher
 
   private def save(srcPath: String, localName: String): Future[Unit] = {

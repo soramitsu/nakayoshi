@@ -1,6 +1,7 @@
 package jp.co.soramitsu.nakayoshi
 
 import jp.co.soramitsu.nakayoshi.Types._
+import jp.co.soramitsu.nakayoshi.internals.Loggable
 import slick.dbio.Effect
 import slick.jdbc.SQLiteProfile.api._
 import slick.sql.FixedSqlAction

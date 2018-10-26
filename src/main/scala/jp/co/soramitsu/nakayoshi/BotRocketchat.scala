@@ -3,13 +3,16 @@ package jp.co.soramitsu.nakayoshi
 import java.util.{Observable, Observer}
 
 import jp.co.soramitsu.nakayoshi.Types._
+import jp.co.soramitsu.nakayoshi.internals.Loggable
+
 import com.keysolutions.ddpclient._
 import com.softwaremill.sttp._, akkahttp.AkkaHttpBackend
 import akka.actor.{Actor, ActorRef, ActorSystem}
 import akka.pattern.pipe
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
-import org.json4s._, native.JsonMethods._
+import org.json4s._
+import org.json4s.native.JsonMethods._
 import org.json4s.jackson.Serialization.read
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -64,7 +67,9 @@ class BotRocketchat(private val pathRaw: String,
     val bodyJson = JObject("username" -> JString(user), "password" -> JString(password))
     sttp.headers(commonHeaders: _*).body(compact(render(bodyJson))).post(loginUrl).send().map(_.body).collect {
       case Right(body) =>
-        val data = parse(string2JsonInput(body)).asInstanceOf[JObject].values("data").asInstanceOf[Map[String, Any]]
+        val data = parse(string2JsonInput(body))
+          .asInstanceOf[JObject].values("data")
+          .asInstanceOf[Map[String, Any]]
         l.info("Logged into a Rocketchat account")
         (data("authToken").asInstanceOf[String], data("userId").asInstanceOf[String])
     }.recover { case th =>
@@ -116,10 +121,11 @@ class BotRocketchat(private val pathRaw: String,
     sttp.headers(commonHeaders ++ authHeaders: _*).get(joinedUrl).send().map(_.body).collect {
       case Right(body) =>
         parse(string2JsonInput(body)).asInstanceOf[JObject]
-          .values("channels").asInstanceOf[List[Any]].map { it =>
-          val i = it.asInstanceOf[Map[String, Any]]
-          (i("_id").asInstanceOf[String], i("name").asInstanceOf[String])
-        }.toMap
+          .values("channels").asInstanceOf[List[Any]]
+          .map { it =>
+            val i = it.asInstanceOf[Map[String, Any]]
+            (i("_id").asInstanceOf[String], i("name").asInstanceOf[String])
+          }.toMap
     }.recover { case th =>
       l.error("Failed to send into a Rocketchat group", th)
       throw th
@@ -151,15 +157,21 @@ class BotRocketchat(private val pathRaw: String,
         listenQueue.foreach(subscribe)
         listenQueue = Seq()
       } else if (args.get("msg").contains("changed") && args.get("collection").contains("stream-room-messages")) {
-        args("fields").asInstanceOf[Map[String, Any]]("args").asInstanceOf[Seq[Any]].foreach { case info: Map[String, Any] =>
-          val chat = info("rid").asInstanceOf[String]
-          val username = info("u").asInstanceOf[Map[String, Any]]("username").asInstanceOf[String]
-          val content = info("msg").asInstanceOf[String]
-          val t = info.get("t").asInstanceOf[Option[String]]
-          // the field `t` contains "uj" when the message is a user joined notification, and "ul" when it is a user left notification
-          // it is not defined for ordinary messages (most likely / no eto netochno)
-          if(t.isEmpty && username != user) router ! RocketchatMessage(chat, username, content)
-        }
+        args("fields")
+          .asInstanceOf[Map[String, Any]]("args")
+          .asInstanceOf[Seq[Any]]
+          .foreach { case info: Map[String, Any] =>
+            val chatId = info("rid").asInstanceOf[String]
+            val msgId = info("_id").asInstanceOf[String]
+            val username = info("u").asInstanceOf[Map[String, Any]]("username").asInstanceOf[String]
+            val content = info("msg").asInstanceOf[String]
+            val t = info.get("t").asInstanceOf[Option[String]]
+            // the field `t` contains "uj" when the message is a 'user joined' notification,
+            // and "ul" when it is a 'user left' notification
+            // it is not defined for ordinary messages (most likely / no eto netochno)
+            if (t.isEmpty && username != user)
+              router ! MsgFromRocketchat(chatId, msgId, username, content)
+          }
       }
     case MsgSendGitter(id, text) =>
       sendMessage(id, text) pipeTo sender()
@@ -182,18 +194,17 @@ class BotRocketchat(private val pathRaw: String,
 }
 
 class RCObserver(val bot: ActorRef) extends Observer {
-  override def update(observable: Observable, o: Any): Unit = {
-    def convert(m: Any): Any = m match {
-      case o: java.util.Map[String, AnyRef] => o.asScala.toMap.mapValues(convert)
-      case l: java.util.List[AnyRef] => l.asScala.map(convert)
-      case j => j
-    }
-    o match {
-      case m: java.util.Map[String, AnyRef] => bot ! ServerResponse(m.asScala.toMap.mapValues(convert))
-      case _ =>
-    }
+  private def convert(m: Any): Any = m match {
+    case o: java.util.Map[String, AnyRef] => o.asScala.toMap.mapValues(convert)
+    case l: java.util.List[AnyRef] => l.asScala.map(convert)
+    case j => j
   }
 
+  override def update(observable: Observable, o: Any): Unit = o match {
+    case m: java.util.Map[String, AnyRef] =>
+      bot ! ServerResponse(m.asScala.toMap.mapValues(convert))
+    case _ =>
+  }
 }
 
 case class ServerResponse(vals: Map[String, Any])

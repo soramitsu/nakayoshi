@@ -1,4 +1,4 @@
-# Nakayoshi
+# なかよし
 
 This is the source code repository for [Nakayoshi], a tool for bridging communities across different chat services.
 Currently we support three chat platforms:

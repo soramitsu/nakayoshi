@@ -2,6 +2,8 @@ package jp.co.soramitsu.nakayoshi
 
 import jp.co.soramitsu.nakayoshi.Types._
 import jp.co.soramitsu.nakayoshi.Storage.insertMessage
+import jp.co.soramitsu.nakayoshi.internals.Loggable
+
 import akka.actor.{Actor, ActorRef}
 import akka.pattern.{ask, pipe}
 import akka.util.Timeout
@@ -20,7 +22,9 @@ class ActorMsgRouter(val tg: ActorRef,
   gitter ! MsgRun(self)
   rocketchat ! MsgRun(self)
 
-  private implicit def dispatcher: ExecutionContext = context.dispatcher
+  private lazy implicit val dispatcher: ExecutionContext = context.dispatcher
+  private implicit val timeout: Timeout = Timeout(2, SECONDS)
+  private implicit val hs: HandlerSettings = HandlerSettings(hostname)
 
   private val telegramChats = mutable.HashMap[Long, TelegramChat]()
   private var gitterChats = List[GitterRoom]()
@@ -35,19 +39,12 @@ class ActorMsgRouter(val tg: ActorRef,
 
   private val chatlistCacheTTL = 15 seconds
 
-  implicit val timeout: Timeout = Timeout(2 seconds)
-
   private def addConnection(conn: Connection): Unit = {
     conn.gtId.foreach { id =>
       gitter ! MsgGitterListen(id)
-      connsGt.put(id, conn)
-    }
-    conn.tgId.foreach { id =>
-      connsTg.put(id, conn)
     }
     conn.rcId.foreach { id =>
       rocketchat ! MsgRcListen(id)
-      connsRc.put(id, conn)
     }
     conns = conns :+ conn
   }
@@ -90,56 +87,24 @@ class ActorMsgRouter(val tg: ActorRef,
     case MsgConnect(connection) =>
       addConnection(connection)
       Storage.insertConn(connection)
-    case m @ MsgFromTelegram(chatId, msgId, user, alias, msg, file, fwd) =>
-      l.info("Telegram message received: " + m.toString)
-      val messageId = insertMessage(ConnectedMessage.create(telegram=Some(chatId, msgId)))
-      val userfill = alias.fold(user)(alias => s"[$user](https://t.me/$alias)")
-      if(msg.isDefined || file.isDefined) connsTg.get(chatId).foreach { conn =>
-        conn.gtId.foreach { id =>
-          val text = s"**$userfill** *" + fwd.fold("")(_ + " ") + "via telegram*\n" +
-            file.fold("")(url => s"![Photo]($hostname$url)\n") +
-            msg.fold("") { case (str, ents) => MarkdownConverter.tg2gt(str, ents) }
-          val msgId = (gitter ? MsgSendGitter(id, text)).mapTo[MsgGt]
+    case m: MsgFrom =>
+      l.info("Message received: " + m.toString)
+      conns.find(m.triggersConnection).foreach { conn =>
+        val messageId = insertMessage(m.emptyMessage)
+        for (tgChat <- conn.tgId; msg <- m.toTelegram(tgChat)) {
+          val msgId = (tg ? msg).mapTo[MsgTg]
+          for (dbId <- messageId; tgId <- msgId)
+            Storage.setMessageTelegram(dbId, tgChat, tgId)
+        }
+        for (gtChat <- conn.gtId; msg <- m.toGitter(gtChat)) {
+          val msgId = (gitter ? msg).mapTo[MsgGt]
           for (dbId <- messageId; gtId <- msgId)
-            Storage.setMessageGitter(dbId, id, gtId)
+            Storage.setMessageGitter(dbId, gtChat, gtId)
         }
-        conn.rcId.foreach { id =>
-          val text = s"*$userfill* _" + fwd.fold("")(_ + " ") + "via telegram_\n" +
-            file.fold("")(url => s"![Photo]($hostname$url)\n") +
-            msg.fold("") { case (str, ents) => MarkdownConverter.tg2rc(str, ents) }
-          val msgId = (rocketchat ? MsgSendGitter(id, text)).mapTo[MsgRc]
+        for (rcChat <- conn.rcId; msg <- m.toRocketchat(rcChat)) {
+          val msgId = (rocketchat ? msg).mapTo[MsgRc]
           for (dbId <- messageId; rcId <- msgId)
-            Storage.setMessageRocketchat(dbId, id, rcId)
-        }
-      }
-    case m @ GitterMessage(chatId, _, username, userUrl, text) =>
-      l.info("Gitter message received: " + m.toString)
-      connsGt.get(chatId).foreach { conn =>
-        conn.tgId.foreach { id =>
-          tg ! MsgSendTelegram(id,
-            s"[$username](https://gitter.im$userUrl) _via gitter_\n" +
-              MarkdownConverter.gt2tg(text)
-          )
-        }
-        conn.rcId.foreach { id =>
-          val msg = s"*[$username](https://gitter.im$userUrl)* _via gitter_\n" +
-            MarkdownConverter.gt2rc(text)
-          rocketchat ! MsgSendGitter(id, msg)
-        }
-      }
-    case m @ RocketchatMessage(chatId, username, text) =>
-      l.info("Rocketchat message received: " + m.toString)
-      connsRc.get(chatId).foreach { conn =>
-        conn.tgId.foreach { id =>
-          tg ! MsgSendTelegram(id,
-            s"[$username](https://${Configuration.rcPath}/direct/$username) _via rocketchat_\n" +
-              MarkdownConverter.rc2tg(text)
-          )
-        }
-        conn.gtId.foreach { id =>
-          val msg = s"**[$username](https://${Configuration.rcPath}/direct/$username)** *via rocketchat*\n" +
-            MarkdownConverter.rc2gt(text)
-          gitter ! MsgSendGitter(id, msg)
+            Storage.setMessageRocketchat(dbId, rcChat, rcId)
         }
       }
   }

@@ -1,4 +1,4 @@
-package jp.co.soramitsu.nakayoshi
+package jp.co.soramitsu.nakayoshi.internals
 
 import com.typesafe.scalalogging.Logger
 

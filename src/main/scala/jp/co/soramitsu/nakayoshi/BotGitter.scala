@@ -1,13 +1,16 @@
 package jp.co.soramitsu.nakayoshi
 
 import jp.co.soramitsu.nakayoshi.Types._
+import jp.co.soramitsu.nakayoshi.internals.Loggable
+
 import akka.Done
 import akka.actor.{Actor, ActorRef, ActorSystem, Timers}
 import akka.pattern.pipe
 import akka.stream.Materializer
 import akka.stream.scaladsl._
 import akka.util.ByteString
-import org.json4s._, native.JsonMethods._
+import org.json4s._
+import org.json4s.native.JsonMethods._
 import org.json4s.jackson.Serialization.read
 import com.softwaremill.sttp._
 
@@ -22,7 +25,7 @@ class BotGitter(token: String)
   extends Actor with Loggable with Timers {
 
   private var router: ActorRef = _
-  private var sink: Sink[GitterMessage, Future[Done]] = Sink.ignore
+  private var sink: Sink[MsgFromGitter, Future[Done]] = Sink.ignore
   private var selfId: Option[String] = None
 
   private implicit val executionContext: ExecutionContext = context.dispatcher
@@ -59,11 +62,11 @@ class BotGitter(token: String)
   private def getMessages(room: String): Future[Response[Source[ByteString, Any]]] =
     sttp.headers(commonHeaders: _*).response(asStream[Source[ByteString, Any]]).get(messagesStream(room)).send()
 
-  private def parseMessage(id: String, body: String): Option[GitterMessage] = {
+  private def parseMessage(id: String, body: String): Option[MsgFromGitter] = {
     parse(string2JsonInput(body)) match {
       case j: JObject =>
         val msg = j.extract[Message]
-        Some(GitterMessage(id, msg.fromUser.id, msg.fromUser.displayName, msg.fromUser.url, msg.text))
+        Some(MsgFromGitter(id, msg.id, msg.fromUser.id, msg.fromUser.displayName, msg.fromUser.url, msg.text))
       case JNothing =>
         None
       case _ =>
