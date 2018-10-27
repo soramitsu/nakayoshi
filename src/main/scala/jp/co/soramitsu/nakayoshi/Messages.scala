@@ -75,7 +75,7 @@ case class MsgFromRocketchat(chatId: ChatRc, msgId: MsgRc, username: String, con
   override def emptyMessage: ConnectedMessage =
     ConnectedMessage.create(rocketchat=Some(chatId, msgId))
 
-  override def triggersConnection(conn: Connection): Boolean = conn.gtId.contains(chatId)
+  override def triggersConnection(conn: Connection): Boolean = conn.rcId.contains(chatId)
 
   override def toTelegram(id: ChatTg)(implicit hs: HandlerSettings): Option[Any] = {
     val message =
