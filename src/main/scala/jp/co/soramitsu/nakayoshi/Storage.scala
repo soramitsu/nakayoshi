@@ -121,4 +121,10 @@ object Storage extends Loggable {
   def setMessageRocketchat(id: Int, chat: ChatRc, msg: MsgRc): Future[Any] =
     db.run(messages.filter(_.id === id).map(i => (i.rocketchatChat, i.rocketchatMsg)).update(Some(chat), Some(msg)))
 
+  def messages(msg: ConnectedMessage): Future[Int] =
+    db.run(messages.filter { i =>
+      (i.gitterChat === msg.gitterChat && i.gitterMsg === msg.gitterMsg) ||
+        (i.telegramChat === msg.telegramChat && i.telegramMsg === msg.telegramMsg) ||
+        (i.rocketchatChat === msg.rocketchatChat && i.rocketchatMsg === msg.rocketchatMessage)
+    }.length.result)
 }

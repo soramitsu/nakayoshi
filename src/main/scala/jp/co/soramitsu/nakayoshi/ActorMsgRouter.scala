@@ -88,24 +88,29 @@ class ActorMsgRouter(val tg: ActorRef,
       addConnection(connection)
       Storage.insertConn(connection)
     case m: MsgFrom =>
-      l.info("Message received: " + m.toString)
-      conns.find(m.triggersConnection).foreach { conn =>
-        val messageId = insertMessage(m.emptyMessage)
-        for (tgChat <- conn.tgId; msg <- m.toTelegram(tgChat)) {
-          val msgId = (tg ? msg).mapTo[MsgTg]
-          for (dbId <- messageId; tgId <- msgId)
-            Storage.setMessageTelegram(dbId, tgChat, tgId)
-        }
-        for (gtChat <- conn.gtId; msg <- m.toGitter(gtChat)) {
-          val msgId = (gitter ? msg).mapTo[MsgGt]
-          for (dbId <- messageId; gtId <- msgId)
-            Storage.setMessageGitter(dbId, gtChat, gtId)
-        }
-        for (rcChat <- conn.rcId; msg <- m.toRocketchat(rcChat)) {
-          val msgId = (rocketchat ? msg).mapTo[MsgRc]
-          for (dbId <- messageId; rcId <- msgId)
-            Storage.setMessageRocketchat(dbId, rcChat, rcId)
-        }
+      val empty = m.emptyMessage
+      Storage.messages(empty).foreach {
+        case count if count <= 0 =>
+          l.info(s"Message received, count $count. Contents: " + m.toString)
+          conns.find(m.triggersConnection).foreach { conn =>
+            val messageId = insertMessage(empty)
+            for (tgChat <- conn.tgId; msg <- m.toTelegram(tgChat)) {
+              val msgId = (tg ? msg).mapTo[MsgTg]
+              for (dbId <- messageId; tgId <- msgId)
+                Storage.setMessageTelegram(dbId, tgChat, tgId)
+            }
+            for (gtChat <- conn.gtId; msg <- m.toGitter(gtChat)) {
+              val msgId = (gitter ? msg).mapTo[MsgGt]
+              for (dbId <- messageId; gtId <- msgId)
+                Storage.setMessageGitter(dbId, gtChat, gtId)
+            }
+            for (rcChat <- conn.rcId; msg <- m.toRocketchat(rcChat)) {
+              val msgId = (rocketchat ? msg).mapTo[MsgRc]
+              for (dbId <- messageId; rcId <- msgId)
+                Storage.setMessageRocketchat(dbId, rcChat, rcId)
+            }
+          }
+        case _ =>
       }
   }
 }
