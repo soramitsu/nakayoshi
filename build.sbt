@@ -4,7 +4,7 @@ name := "nakayoshi"
 
 version := "0.1.1"
 
-scalaVersion := "2.12.7"
+scalaVersion := "2.12.12"
 
 mainClass := Some("jp.co.soramitsu.nakayoshi.Main")
 
