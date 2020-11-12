@@ -7,7 +7,7 @@ import jp.co.soramitsu.nakayoshi.internals.Loggable
 
 import com.keysolutions.ddpclient._
 import com.softwaremill.sttp._, akkahttp.AkkaHttpBackend
-import akka.actor.{Actor, ActorRef, ActorSystem}
+import akka.actor.{Actor, ActorRef, ActorSystem, Timers}
 import akka.pattern.pipe
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
@@ -18,6 +18,7 @@ import org.json4s.native.Serialization.read
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.collection.JavaConverters._
+import scala.concurrent.duration._
 
 
 case class RcInnerMessage(_id: String, msg: String, u: RcInnerUser)
@@ -29,7 +30,7 @@ class BotRocketchat(private val pathRaw: String,
                     private val user: String,
                     private val password: String)
                    (implicit actorSystem: ActorSystem)
-  extends Actor with Loggable {
+  extends Actor with Loggable with Timers {
 
   private val client = new DDPClient(pathRaw, 443, true)
   private var observer: RCObserver = _
@@ -158,7 +159,6 @@ class BotRocketchat(private val pathRaw: String,
       if(args.get("id").contains(loginCall.toString)) {
         loggedIn = true
         listenQueue.foreach(subscribe)
-        listenQueue = Seq()
       } else if (args.get("msg").contains("changed") && args.get("collection").contains("stream-room-messages")) {
         args("fields")
           .asInstanceOf[Map[String, Any]]("args")
@@ -175,12 +175,16 @@ class BotRocketchat(private val pathRaw: String,
             if (t.isEmpty && username != user)
               router ! MsgFromRocketchat(chatId, msgId, username, content)
           }
+      } else if (args.get("msg").contains("closed") && !timers.isTimerActive('reconnect_timer)) {
+        timers.startSingleTimer('reconnect_timer, 'connect, 1 minute)
       }
     case MsgSendGitter(id, text) =>
       sendMessage(id, text) pipeTo sender()
     case MsgRun(r) =>
-      observer = new RCObserver(self)
       router = r
+      observer = new RCObserver(self)
+      self ! 'connect
+    case 'connect => 
       client.connect()
       client.addObserver(observer)
       login().foreach { case (token, id) =>
