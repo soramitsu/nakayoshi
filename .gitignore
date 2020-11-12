@@ -5,5 +5,16 @@ target/
 local.conf
 *.sqlite
 *.sqlite3
-/*.log.gz
-/*.log
+
+# Logs
+data/
+*.log.gz
+*.log
+
+# Metals and VS Code
+.metals
+.bloop
+.vscode
+project/boot/
+project/plugins/project/
+**/metals.sbt
