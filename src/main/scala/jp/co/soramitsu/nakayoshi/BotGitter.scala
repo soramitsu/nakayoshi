@@ -128,6 +128,7 @@ class BotGitter(token: String)
 
       }.recover { case th =>
         l.error(s"Failed to initiate connection to Gitter chat $id", th)
+        timers.startSingleTimer(Symbol(id), MsgGitterListen(id), 1 minute)
       }
     case MsgSendGitter(id, text) =>
       sendMsg(id, text) pipeTo sender()
