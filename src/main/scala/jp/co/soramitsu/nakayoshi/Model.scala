@@ -11,7 +11,7 @@ object Types {
   type ChatTg = Long
   type ChatGt = String
   type ChatRc = String
-  type MsgTg = Long
-  type MsgGt = String
-  type MsgRc = String
+  type MsgTg  = Long
+  type MsgGt  = String
+  type MsgRc  = String
 }

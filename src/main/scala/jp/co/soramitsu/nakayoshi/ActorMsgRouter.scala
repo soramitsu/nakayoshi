@@ -12,27 +12,24 @@ import scala.concurrent.duration._
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext
 
-class ActorMsgRouter(val tg: ActorRef,
-                     val gitter: ActorRef,
-                     val rocketchat: ActorRef,
-                     val hostname: String)
-  extends Actor with Loggable {
+class ActorMsgRouter(val tg: ActorRef, val gitter: ActorRef, val rocketchat: ActorRef, val hostname: String)
+    extends Actor with Loggable {
 
   tg ! MsgRun(self)
   gitter ! MsgRun(self)
   rocketchat ! MsgRun(self)
 
   private lazy implicit val dispatcher: ExecutionContext = context.dispatcher
-  private implicit val timeout: Timeout = Timeout(2, SECONDS)
-  private implicit val hs: HandlerSettings = HandlerSettings(hostname)
+  private implicit val timeout: Timeout                  = Timeout(2, SECONDS)
+  private implicit val hs: HandlerSettings               = HandlerSettings(hostname)
 
-  private val telegramChats = mutable.HashMap[Long, TelegramChat]()
-  private var gitterChats = List[GitterRoom]()
+  private val telegramChats               = mutable.HashMap[Long, TelegramChat]()
+  private var gitterChats                 = List[GitterRoom]()
   private var gitterChatsLastUpdate: Long = 0
-  private var rcChats = Map[String, String]()
-  private var rcChatsLastUpdate: Long = 0
+  private var rcChats                     = Map[String, String]()
+  private var rcChatsLastUpdate: Long     = 0
 
-  private var conns = Seq[Connection]()
+  private var conns   = Seq[Connection]()
   private val connsTg = mutable.HashMap[Long, Connection]()
   private val connsGt = mutable.HashMap[String, Connection]()
   private val connsRc = mutable.HashMap[String, Connection]()
@@ -50,8 +47,8 @@ class ActorMsgRouter(val tg: ActorRef,
   }
 
   override def receive: Receive = {
-    case 'getGtChats =>
-      if(System.currentTimeMillis() - gitterChatsLastUpdate < chatlistCacheTTL.toMillis)
+    case 'getGtChats                =>
+      if (System.currentTimeMillis() - gitterChatsLastUpdate < chatlistCacheTTL.toMillis)
         sender() ! gitterChats
       else {
         val chats = (gitter ? 'getChats).mapTo[List[GitterRoom]]
@@ -61,8 +58,8 @@ class ActorMsgRouter(val tg: ActorRef,
         }
         chats pipeTo sender()
       }
-    case 'getRcChats =>
-      if(System.currentTimeMillis() - rcChatsLastUpdate < chatlistCacheTTL.toMillis)
+    case 'getRcChats                =>
+      if (System.currentTimeMillis() - rcChatsLastUpdate < chatlistCacheTTL.toMillis)
         sender() ! rcChats
       else {
         val chats = (rocketchat ? 'getChats).mapTo[Map[String, String]]
@@ -72,22 +69,22 @@ class ActorMsgRouter(val tg: ActorRef,
         }
         chats pipeTo sender()
       }
-    case 'getTgChats =>
+    case 'getTgChats                =>
       sender ! telegramChats.toSeq
-    case 'getConns =>
+    case 'getConns                  =>
       sender ! conns
-    case 'updateConnsFromDB =>
+    case 'updateConnsFromDB         =>
       Storage.getConns().foreach { ret: Seq[(Int, Connection)] =>
         ret.foreach { case (_, conn) => addConnection(conn) }
       }
-    case m: MsgRcJoin =>
+    case m: MsgRcJoin               =>
       (rocketchat ? m) pipeTo sender()
     case MsgAddTgChat(chatId, chat) =>
       telegramChats.put(chatId, chat)
-    case MsgConnect(connection) =>
+    case MsgConnect(connection)     =>
       addConnection(connection)
       Storage.insertConn(connection)
-    case m: MsgFrom =>
+    case m: MsgFrom                 =>
       val empty = m.emptyMessage
       Storage.messages(empty).foreach {
         case count if count <= 0 =>
@@ -110,7 +107,7 @@ class ActorMsgRouter(val tg: ActorRef,
                 Storage.setMessageRocketchat(dbId, rcChat, rcId)
             }
           }
-        case _ =>
+        case _                   =>
       }
   }
 }
