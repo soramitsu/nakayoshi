@@ -18,6 +18,8 @@ object Main extends App with Loggable {
   implicit val executionContext: ExecutionContext = system.dispatcher
   implicit val sttpBackend: SttpBackend[Future, Source[ByteString, Any]] = AkkaHttpBackend.usingActorSystem(system)
 
+  l.info("なかよし Bot Started!")
+  
   Await.ready(Storage.create(), Duration(1, MINUTES))
 
   val botTelegram = system.actorOf(Props(
