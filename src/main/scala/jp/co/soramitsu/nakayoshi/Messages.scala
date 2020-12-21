@@ -114,14 +114,16 @@ case class MsgFromRocketchat(chatId: ChatRc, msgId: MsgRc, username: String, con
   override def toRocketchat(id: ChatRc)(implicit hs: HandlerSettings): Option[Any] = None
 }
 
-case class MsgAddTgChat(chatId: Long, chat: TelegramChat) // Adding a Telegram chat to list
-case class MsgConnect(connection: Connection)             // Adding a connection to router
+case class MsgAddTgChat(chatId: ChatTg, chat: TelegramChat) // Adding a Telegram chat to list
+case class MsgConnect(connection: Connection)               // Adding a connection to router
 
-case class MsgGitterListen(id: String) // Initiate a listening connection to a Gitter room
+case class MsgGitterListen(id: ChatGt) // Initiate a listening connection to a Gitter room
 
 // For sending messages
-case class MsgSendGitter(id: String, text: String) // Not only Gitter but Rocketchat also :)
-case class MsgSendTelegram(id: Long, text: String, fallback: String)
+case class MsgSendGitter(id: ChatGt, text: String) // Not only Gitter but Rocketchat also :)
+case class MsgSendTelegram(id: ChatTg, text: String, fallback: String)
 
-case class MsgRcJoin(name: String)
-case class MsgRcListen(id: String)
+case class MsgRcJoin(name: ChatRc)
+case class MsgRcListen(id: ChatRc)
+
+case class MsgTgListen(id: ChatTg)

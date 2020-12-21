@@ -2,7 +2,7 @@ import com.typesafe.sbt.packager.docker._
 
 name := "nakayoshi"
 
-version := "0.1.1"
+version := "0.1.2"
 
 scalaVersion := "2.12.12"
 
@@ -13,36 +13,36 @@ enablePlugins(DockerPlugin)
 enablePlugins(AshScriptPlugin)
 
 val log4j = "2.10.0"
-val akka = "2.5.7"
+val akka  = "2.5.7"
 
 libraryDependencies ++= Seq(
-  "info.mukel" %% "telegrambot4s" % "3.0.16",
-  "com.typesafe" % "config" % "1.3.+",
-  "org.json4s" %% "json4s-native" % "3.5.3",
-  "com.keysolutions" % "java-ddp-client" % "1.0.0.7" exclude("org.slf4j", "slf4j-simple"),
+  "info.mukel"                 %% "telegrambot4s"     % "3.0.16",
+  "com.typesafe"                % "config"            % "1.3.+",
+  "org.json4s"                 %% "json4s-native"     % "3.5.3",
+  "com.keysolutions"            % "java-ddp-client"   % "1.0.0.7" exclude ("org.slf4j", "slf4j-simple"),
   // HTTP Client
-  "com.softwaremill.sttp" %% "core" % "1.1.9",
-  "com.softwaremill.sttp" %% "akka-http-backend" % "1.1.9",
+  "com.softwaremill.sttp"      %% "core"              % "1.1.9",
+  "com.softwaremill.sttp"      %% "akka-http-backend" % "1.1.9",
   // Database
-  "com.typesafe.slick" %% "slick" % "3.2.1",
-  "org.xerial" % "sqlite-jdbc" % "3.21.0",
+  "com.typesafe.slick"         %% "slick"             % "3.2.1",
+  "org.xerial"                  % "sqlite-jdbc"       % "3.21.0",
   // Logging dependencies
-  "com.typesafe.scala-logging" %% "scala-logging"   % "3.9.+",
-  "ch.qos.logback"             %  "logback-classic" % "1.2.+",
+  "com.typesafe.scala-logging" %% "scala-logging"     % "3.9.+",
+  "ch.qos.logback"              % "logback-classic"   % "1.2.+",
   // Akka
-  "com.typesafe.akka" %% "akka-actor" % akka,
-  "com.typesafe.akka" %% "akka-stream" % akka,
-  "com.typesafe.akka" %% "akka-slf4j" % akka,
-  "com.typesafe.akka" %% "akka-http" % "10.0.11",
+  "com.typesafe.akka"          %% "akka-actor"        % akka,
+  "com.typesafe.akka"          %% "akka-stream"       % akka,
+  "com.typesafe.akka"          %% "akka-slf4j"        % akka,
+  "com.typesafe.akka"          %% "akka-http"         % "10.0.11",
   // Test
-  "org.scalatest" %% "scalatest" % "3.0.5" % Test
+  "org.scalatest"              %% "scalatest"         % "3.0.5" % Test
 )
 
 assemblyJarName in assembly := name.value + ".jar"
 assemblyMergeStrategy in assembly := {
-  case "logback.xml" => MergeStrategy.first
-  case "application.conf"  => MergeStrategy.concat
-  case x => (assemblyMergeStrategy in assembly).value(x)
+  case "logback.xml"      => MergeStrategy.first
+  case "application.conf" => MergeStrategy.concat
+  case x                  => (assemblyMergeStrategy in assembly).value(x)
 }
 
 dockerUpdateLatest := true
