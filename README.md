@@ -36,7 +36,7 @@ services:
       - ./files:/opt/docker/files:rw
       - ./settings:/opt/docker/settings:rw
 ```
-### Buildi and push a Docker image without local scala
+### Build and push a Docker image
 ```shell
 docker run -it  \
    -v /var/run/docker.sock:/var/run/docker.sock \
