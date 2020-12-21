@@ -46,8 +46,8 @@ docker run -it  \
    bash -c 'apt install -y docker.io && sbt docker:publishLocal'
 
 docker tag nakayoshi:latest  soramitsu/nakayoshi:latest 
-docker tag nakayoshi:latest  soramitsu/nakayoshi:0.1.1 
+docker tag nakayoshi:latest  soramitsu/nakayoshi:0.1.2 
 docker login --username=soramitsu
 docker push soramitsu/nakayoshi:latest
-docker push soramitsu/nakayoshi:0.1.1
+docker push soramitsu/nakayoshi:0.1.2
 ```

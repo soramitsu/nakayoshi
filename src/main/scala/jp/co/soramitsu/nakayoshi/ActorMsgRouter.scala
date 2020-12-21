@@ -43,6 +43,9 @@ class ActorMsgRouter(val tg: ActorRef, val gitter: ActorRef, val rocketchat: Act
     conn.rcId.foreach { id =>
       rocketchat ! MsgRcListen(id)
     }
+    conn.tgId.foreach { id =>
+      tg ! MsgTgListen(id)
+    }
     conns = conns :+ conn
   }
 

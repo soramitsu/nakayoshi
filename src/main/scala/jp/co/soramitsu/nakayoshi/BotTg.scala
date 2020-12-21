@@ -1,6 +1,7 @@
 package jp.co.soramitsu.nakayoshi
 
 import jp.co.soramitsu.nakayoshi.internals.TelegramBot
+import jp.co.soramitsu.nakayoshi.Types._
 
 import akka.actor.{Actor, ActorRef, ActorSystem}
 import akka.pattern.{ask, pipe}
@@ -22,6 +23,7 @@ class BotTg(val token: String, val admins: Set[String])(
   private var router: ActorRef                         = _
   implicit val timeout: Timeout                        = Timeout(2, SECONDS)
   lazy implicit val executionContext: ExecutionContext = system.dispatcher
+  private var connectedChats: Set[ChatTg]              = Set()
 
   private def save(srcPath: String, localName: String): Future[Unit] = {
     import java.io.File
@@ -164,38 +166,40 @@ class BotTg(val token: String, val admins: Set[String])(
 
   onMessage { implicit msg: Message =>
     if (msg.chat.`type` == ChatType.Supergroup) {
-      val user     = msg.from.get
+      val user = msg.from.get
       router ! MsgAddTgChat(msg.chat.id, TelegramChat(msg.chat.title.get, msg.chat.username))
-      l.info(s"Received message from chat ${msg.chat.id}")
-      // Save photo or sticker locally and get its local url
-      val photoUrl =
-        msg.photo
-          .map(_.maxBy(_.width).fileId)
-          .orElse(msg.sticker.map(_.fileId))
-          .map(download)
+      if (connectedChats contains msg.chat.id) {
+        l.info(s"Received message from chat ${msg.chat.id}")
+        // Save photo or sticker locally and get its local url
+        val photoUrl =
+          msg.photo
+            .map(_.maxBy(_.width).fileId)
+            .orElse(msg.sticker.map(_.fileId))
+            .map(download)
 
-      // Forward message to the router
-      def userConvert(user: User) = user.firstName + user.lastName.fold("")(' ' + _)
+        // Forward message to the router
+        def userConvert(user: User) = user.firstName + user.lastName.fold("")(' ' + _)
 
-      val userName                                      = userConvert(user)
-      val forward                                       =
-        msg.forwardFrom
-          .map(userConvert)
-          .orElse(msg.forwardFromChat.flatMap(_.title))
-          .map("forwarded from " + _)
-      val message: Option[(String, Seq[MessageEntity])] =
-        msg.text
-          .map((_, msg.entities.getOrElse(Seq())))
-          .orElse(msg.caption.map((_, Seq())))
-      val alias                                         = user.username
+        val userName                                      = userConvert(user)
+        val forward                                       =
+          msg.forwardFrom
+            .map(userConvert)
+            .orElse(msg.forwardFromChat.flatMap(_.title))
+            .map("forwarded from " + _)
+        val message: Option[(String, Seq[MessageEntity])] =
+          msg.text
+            .map((_, msg.entities.getOrElse(Seq())))
+            .orElse(msg.caption.map((_, Seq())))
+        val alias                                         = user.username
 
-      photoUrl match {
-        case None         =>
-          router ! MsgFromTelegram(msg.chat.id, msg.messageId, userName, alias, message, None, forward)
-        case Some(future) =>
-          future.foreach { url =>
-            router ! MsgFromTelegram(msg.chat.id, msg.messageId, userName, alias, message, Some(url), forward)
-          }
+        photoUrl match {
+          case None         =>
+            router ! MsgFromTelegram(msg.chat.id, msg.messageId, userName, alias, message, None, forward)
+          case Some(future) =>
+            future.foreach { url =>
+              router ! MsgFromTelegram(msg.chat.id, msg.messageId, userName, alias, message, Some(url), forward)
+            }
+        }
       }
     }
   }
@@ -204,6 +208,8 @@ class BotTg(val token: String, val admins: Set[String])(
     case MsgRun(refRouter)                      =>
       router = refRouter
       run()
+    case MsgTgListen(id)                        =>
+      connectedChats = connectedChats + id
     case m @ MsgSendTelegram(id, msg, fallback) =>
       l.info(s"Sending Telegram message: $m")
       request(SendMessage(id, msg, parseMode = Some(ParseMode.Markdown), disableWebPagePreview = Some(true)))
