@@ -7,9 +7,14 @@ import akka.actor.{Actor, ActorRef, ActorSystem}
 import akka.pattern.{ask, pipe}
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import info.mukel.telegrambot4s.api.{Polling, TelegramApiException}
-import info.mukel.telegrambot4s.methods.{GetFile, ParseMode, SendMessage}
-import info.mukel.telegrambot4s.models.{ChatType, Message, MessageEntity, User}
+import com.bot4s.telegram.future.Polling
+import com.bot4s.telegram.api.TelegramApiException
+import com.bot4s.telegram.api.declarative.Commands
+import com.bot4s.telegram.methods.{GetFile, ParseMode, SendMessage}
+import com.bot4s.telegram.models.{ChatType, Message, MessageEntity, User}
+
+import cats.syntax.functor._
+import cats.instances.future._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
@@ -64,61 +69,45 @@ class BotTg(val token: String, val admins: Set[String])(
         "/connections - show all connections\n" +
         "/connect <telegram\\_chat\\_id> <gitter\\_room\\_id> <rocketchat\\_channel\\_id> - add a new connection (`none` instead of ID is fine)",
       parseMode = Some(ParseMode.Markdown)
-    )
+    ).void
   }
 
   adminCmd('gitter_chats) { implicit msg: Message =>
-    (router ? 'getGtChats).mapTo[List[GitterRoom]].onComplete {
-      case Success(list) =>
-        val message = list.map { room =>
-          s"[${room.name}](https://gitter.im${room.url})\nID `${room.id}`\n\n"
-        }.foldLeft("*Available Gitter rooms*\n\n")(_ + _)
-        reply(message, parseMode = Some(ParseMode.Markdown))
-      case Failure(e)    =>
-        l.error("Failed to respond to a command with a list of Gitter chats", e)
-        reply("Gitter chat list unavailable")
+    (router ? 'getGtChats).mapTo[List[GitterRoom]].flatMap { list =>
+      val message = list.map { room =>
+        s"[${room.name}](https://gitter.im${room.url})\nID `${room.id}`\n\n"
+      }.foldLeft("*Available Gitter rooms*\n\n")(_ + _)
+      reply(message, parseMode = Some(ParseMode.Markdown)).void
     }
   }
 
   adminCmd('telegram_chats) { implicit msg: Message =>
-    (router ? 'getTgChats).mapTo[Seq[(Long, TelegramChat)]].onComplete {
-      case Success(list) =>
-        val message = list.map { case (id, chat) =>
-          val title    = chat.title
-          val username = chat.username.fold("")(it => s" (@$it)")
-          s"$title$username\nID <code>$id</code>\n\n"
-        }.foldLeft("<b>Available Telegram chats</b>\n\n")(_ + _)
-        reply(message, parseMode = Some(ParseMode.HTML))
-      case Failure(e)    =>
-        l.error("Failed to respond to a command with a list of Telegram chats", e)
-        reply("Telegram chat list unavailable")
+    (router ? 'getTgChats).mapTo[Seq[(Long, TelegramChat)]].flatMap { list =>
+      val message = list.map { case (id, chat) =>
+        val title    = chat.title
+        val username = chat.username.fold("")(it => s" (@$it)")
+        s"$title$username\nID <code>$id</code>\n\n"
+      }.foldLeft("<b>Available Telegram chats</b>\n\n")(_ + _)
+      reply(message, parseMode = Some(ParseMode.HTML)).void
     }
   }
 
   adminCmd('rocketchat_chats) { implicit msg: Message =>
-    (router ? 'getRcChats).mapTo[Map[String, String]].onComplete {
-      case Success(list) =>
-        val message = list.map { case (id, name) => s"#$name <code>$id</code>\n\n" }
-          .foldLeft("<b>Available Rocketchat chats</b>\n\n")(_ + _)
-        reply(message, parseMode = Some(ParseMode.HTML))
-      case Failure(e)    =>
-        l.error("Failed to respond to a command with a list of Rocketchat chats", e)
-        reply("Rocketchat chat list unavailable")
+    (router ? 'getRcChats).mapTo[Map[String, String]].flatMap { list =>
+      val message = list.map { case (id, name) => s"#$name <code>$id</code>\n\n" }
+        .foldLeft("<b>Available Rocketchat chats</b>\n\n")(_ + _)
+      reply(message, parseMode = Some(ParseMode.HTML)).void
     }
   }
 
   adminCmd('connections) { implicit msg: Message =>
-    (router ? 'getConns).mapTo[Seq[Connection]].onComplete {
-      case Success(list) =>
-        val message = list.map { conn =>
-          s"${conn.tgId.getOrElse("_none_")}; " +
-            s"${conn.gtId.getOrElse("_none_")}; " +
-            s"${conn.rcId.getOrElse("_none_")}\n"
-        }.foldLeft("*Connections (Telegram; Gitter; Rocketchat)*\n\n")(_ + _)
-        reply(message, parseMode = Some(ParseMode.Markdown))
-      case Failure(e)    =>
-        l.error("Failed to respond to a command with a list of connections", e)
-        reply("Connections list unavailable")
+    (router ? 'getConns).mapTo[Seq[Connection]].flatMap { list =>
+      val message = list.map { conn =>
+        s"${conn.tgId.getOrElse("_none_")}; " +
+          s"${conn.gtId.getOrElse("_none_")}; " +
+          s"${conn.rcId.getOrElse("_none_")}\n"
+      }.foldLeft("*Connections (Telegram; Gitter; Rocketchat)*\n\n")(_ + _)
+      reply(message, parseMode = Some(ParseMode.Markdown)).void
     }
   }
 
@@ -129,7 +118,7 @@ class BotTg(val token: String, val admins: Set[String])(
         "*Usage:* /connect <telegram\\_chat\\_id> <gitter\\_room\\_id> <rocketchat\\_channel\\_id>\n" +
           "Type `none` instead of ID if there is no room to connect",
         parseMode = Some(ParseMode.Markdown)
-      )
+      ).void
     } else {
       val tgRoom =
         try Some(tokens(1).toLong)
@@ -138,10 +127,10 @@ class BotTg(val token: String, val admins: Set[String])(
       val rcRoom = if (tokens(3) != "none") Some(tokens(3)) else None
 
       if (Seq(gtRoom, tgRoom, rcRoom).flatten.lengthCompare(2) < 0)
-        reply("At least two chat rooms must be specified")
+        reply("At least two chat rooms must be specified").void
       else {
         router ! MsgConnect(Connection(tgRoom, gtRoom, rcRoom))
-        reply("Added a new connection")
+        reply("Added a new connection").void
       }
     }
   }
@@ -149,17 +138,12 @@ class BotTg(val token: String, val admins: Set[String])(
   adminCmd('rocketchat_join) { implicit msg: Message =>
     val tokens = msg.text.get.split(' ')
     if (tokens.length != 2) {
-      reply("*Usage:* /rocketchat_join <group_name>\n", parseMode = Some(ParseMode.Markdown))
+      reply("*Usage:* /rocketchat_join <group_name>\n", parseMode = Some(ParseMode.Markdown)).void
     } else {
-      (router ? MsgRcJoin(tokens(1))).mapTo[Future[Unit]].onComplete {
-        case Success(_) =>
-          val text = s"Joined Rocketchat chat ${tokens(1)}"
-          l.info(text)
-          reply(text)
-        case Failure(e) =>
-          val text = s"Failed to join Rocketchat chat ${tokens(1)}"
-          l.info(text, e)
-          reply(text)
+      (router ? MsgRcJoin(tokens(1))).mapTo[Future[Unit]].flatMap { _ =>
+        val text = s"Joined Rocketchat chat ${tokens(1)}"
+        l.info(text)
+        reply(text).void
       }
     }
   }
@@ -202,6 +186,7 @@ class BotTg(val token: String, val admins: Set[String])(
         }
       }
     }
+    Future.unit
   }
 
   override def receive: Receive = {

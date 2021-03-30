@@ -15,6 +15,7 @@ data/
 .metals
 .bloop
 .vscode
+.build
 project/boot/
 project/plugins/project/
 **/metals.sbt
