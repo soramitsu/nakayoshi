@@ -3,7 +3,7 @@ package jp.co.soramitsu.nakayoshi
 import jp.co.soramitsu.nakayoshi.Types._
 
 import akka.actor.ActorRef
-import info.mukel.telegrambot4s.models.MessageEntity
+import com.bot4s.telegram.models.MessageEntity
 
 // For starting actors
 case class MsgRun(router: ActorRef)

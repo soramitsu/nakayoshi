@@ -16,13 +16,25 @@ This project uses [sbt] as a build system.
 
 ### Building a Docker image
 
-Following command should be ran in the cloned repository folder.
+**Requirements**
+1. [sbt](https://www.scala-sbt.org/)
+2. temporarily - [mill](https://com-lihaoyi.github.io/mill/)
+3. temporarily - [git](https://git-scm.com/)
+
+Following commands should be ran in the cloned repository folder.
 
 ```sh
+$ sbt buildTelegramLibrarySnapshot
 $ sbt docker:publishLocal
 ```
 
 After that you will find an image tagged `nakayoshi`
+
+#### Note on Telegram Library
+
+Building telegram library this way is temporary until the new version is published. This command will checkout a fixed commit of the telegram library and build it locally. Make sure to have `mill` and `git` installed for the `sbt buildTelegramLibrarySnapshot` to be executed successfully.
+
+#### Docker Compose Example
 
 Example `docker-compose.yml`:
 
@@ -46,8 +58,8 @@ docker run -it  \
    bash -c 'apt install -y docker.io && sbt docker:publishLocal'
 
 docker tag nakayoshi:latest  soramitsu/nakayoshi:latest 
-docker tag nakayoshi:latest  soramitsu/nakayoshi:0.1.2 
+docker tag nakayoshi:latest  soramitsu/nakayoshi:0.1.3 
 docker login --username=soramitsu
 docker push soramitsu/nakayoshi:latest
-docker push soramitsu/nakayoshi:0.1.2
+docker push soramitsu/nakayoshi:0.1.3
 ```

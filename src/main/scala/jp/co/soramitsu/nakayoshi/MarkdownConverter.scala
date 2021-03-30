@@ -1,7 +1,7 @@
 package jp.co.soramitsu.nakayoshi
 
-import info.mukel.telegrambot4s.models.{MessageEntity, MessageEntityType}
-import info.mukel.telegrambot4s.models.MessageEntityType.MessageEntityType
+import com.bot4s.telegram.models.{MessageEntity, MessageEntityType}
+import com.bot4s.telegram.models.MessageEntityType.MessageEntityType
 
 import scala.util.matching.Regex
 
