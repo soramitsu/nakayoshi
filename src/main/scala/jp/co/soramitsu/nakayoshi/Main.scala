@@ -25,7 +25,15 @@ object Main extends App with Loggable {
   val botTelegram   = system.actorOf(Props(new BotTg(Configuration.tgToken, Configuration.tgAdmins)), "botTelegram")
   val botGitter     = system.actorOf(Props(new BotGitter(Configuration.gtToken)), "botGitter")
   val botRocketchat = system.actorOf(
-    Props(new BotRocketchat(Configuration.rcPath, Configuration.rcUser, Configuration.rcPassword)),
+    Props(
+      new BotRocketchat(
+        Configuration.rcPath,
+        Configuration.rcPort,
+        Configuration.rcSsl,
+        Configuration.rcUser,
+        Configuration.rcPassword
+      )
+    ),
     "botRocketchat"
   )
   val router        =

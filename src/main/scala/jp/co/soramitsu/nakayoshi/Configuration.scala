@@ -20,6 +20,8 @@ object Configuration {
   lazy val rcPath: String        = conf.getString("rocketchat.path")
   lazy val rcUser: String        = conf.getString("rocketchat.user")
   lazy val rcPassword: String    = conf.getString("rocketchat.password")
+  lazy val rcPort: Int           = conf.getInt("rocketchat.port")
+  lazy val rcSsl: Boolean        = conf.getBoolean("rocketchat.ssl-enabled")
 
   lazy val httpEnabled: Boolean  = conf.getBoolean("http.enabled")
   lazy val httpInterface: String = conf.getString("http.interface")

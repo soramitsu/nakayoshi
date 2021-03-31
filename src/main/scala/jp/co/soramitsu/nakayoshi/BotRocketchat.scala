@@ -24,11 +24,17 @@ case class RcInnerMessage(_id: String, msg: String, u: RcInnerUser)
 case class RcInnerUser(_id: String, name: String, username: String)
 case class RcInnerPostActionResult(channel: String, message: RcInnerMessage)
 
-class BotRocketchat(private val pathRaw: String, private val user: String, private val password: String)(implicit
+class BotRocketchat(
+    private val pathRaw: String,
+    private val port: Int,
+    private val sslEnabled: Boolean,
+    private val user: String,
+    private val password: String
+)(implicit
     actorSystem: ActorSystem
 ) extends Actor with Loggable with Timers {
 
-  private val client                   = new DDPClient(pathRaw, 443, true)
+  private val client                   = new DDPClient(pathRaw, port, sslEnabled)
   private var observer: RCObserver     = _
   private var listenQueue: Seq[String] = Seq()
 
@@ -54,7 +60,8 @@ class BotRocketchat(private val pathRaw: String, private val user: String, priva
     "Content-Type" -> "application/json"
   )
 
-  private val path                      = s"https://$pathRaw"
+  private val protocol                  = if (sslEnabled) "https" else "http"
+  private val path                      = s"$protocol://$pathRaw:$port"
   private val loginUrl                  = uri"$path/api/v1/login"
   private val joinUrl                   = uri"$path/api/v1/channels.join"
   private val joinedUrl                 = uri"$path/api/v1/channels.list.joined"
@@ -90,7 +97,7 @@ class BotRocketchat(private val pathRaw: String, private val user: String, priva
     * @param name chat group name (e.g. "general")
     * @return future with the group's ID
     */
-  private def getChanId(name: String): Future[String] = {
+  private def getChatId(name: String): Future[String] = {
     sttp
       .headers(commonHeaders ++ authHeaders: _*)
       .get(chanInfoUrl(name))
@@ -104,7 +111,7 @@ class BotRocketchat(private val pathRaw: String, private val user: String, priva
           .asInstanceOf[String]
       }
       .recover { case th =>
-        l.error("Failed to login into Rocketchat account", th)
+        l.error("Failed to get chat group id", th)
         throw th
       }
   }
@@ -218,7 +225,7 @@ class BotRocketchat(private val pathRaw: String, private val user: String, priva
         tokenId = Some((token, id))
       }
     case MsgRcJoin(name)         =>
-      sender ! getChanId(name).map(joinChat)
+      sender ! getChatId(name).map(joinChat)
     case MsgRcListen(id)         =>
       if (loggedIn) subscribe(id)
       else listenQueue = listenQueue :+ id
