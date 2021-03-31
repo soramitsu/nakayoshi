@@ -15,7 +15,9 @@ jobs:
         with:
           java-version: 1.8
       - name: Install mill
-        run: sudo curl -L https://github.com/com-lihaoyi/mill/releases/download/0.9.5/0.9.5 > /usr/local/bin/mill && sudo chmod +x /usr/local/bin/mill
+        uses: jodersky/setup-mill@master
+        with:
+          mill-version: 0.8.0
       - name: Build telegram library
         run: sbt buildTelegramLibrarySnapshot
       - name: Run tests
