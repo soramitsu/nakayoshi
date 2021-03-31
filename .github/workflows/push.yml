@@ -1,4 +1,4 @@
-name: Scala CI
+name: Master Branch Workflow
 
 on:
   push:
@@ -11,11 +11,13 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Set up JDK 1.8
-        uses: actions/setup-java@v1
+        uses: actions/setup-java@v1z
         with:
           java-version: 1.8
       - name: Install mill
-        run: sudo curl -L https://github.com/com-lihaoyi/mill/releases/download/0.9.5/0.9.5 > /usr/local/bin/mill && sudo chmod +x /usr/local/bin/mill
+        uses: jodersky/setup-mill@master
+        with:
+          mill-version: 0.8.0
       - name: Build telegram library
         run: sbt buildTelegramLibrarySnapshot
       - name: Login to Docker Hub
