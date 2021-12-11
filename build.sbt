@@ -14,7 +14,7 @@ enablePlugins(JavaAppPackaging)
 enablePlugins(DockerPlugin)
 enablePlugins(AshScriptPlugin)
 
-val log4j    = "2.10.0"
+val log4j    = "2.15.0"
 val akka     = "2.6.13"
 val sttp     = "1.7.2"
 val telegram = "4.4.0-RC2-SNAPSHOT"
