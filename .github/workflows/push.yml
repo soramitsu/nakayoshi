@@ -29,6 +29,6 @@ jobs:
         run: |
           sbt docker:publishLocal
           docker tag nakayoshi:latest  soramitsu/nakayoshi:latest
-          docker tag nakayoshi:latest  soramitsu/nakayoshi:0.1.3 
+          docker tag nakayoshi:latest  soramitsu/nakayoshi:0.1.4
           docker push soramitsu/nakayoshi:latest
-          docker push soramitsu/nakayoshi:0.1.3
+          docker push soramitsu/nakayoshi:0.1.4
